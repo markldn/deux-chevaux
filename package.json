@@ -1,0 +1,8 @@
+{
+  "name": "deux-chevaux",
+  "private": true,
+  "description": "A Citroën 2CV crash test — film, crash lab and open world — in one 55 KiB WebGL2 page. Soft-body physics calibrated to a real 1976 test.",
+  "type": "module",
+  "scripts": { "build": "node build.mjs", "start": "./run.sh", "test": "node test/tests.mjs" },
+  "devDependencies": { "esbuild": "^0.21.5" }
+}

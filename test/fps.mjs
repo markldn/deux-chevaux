@@ -1,5 +1,5 @@
 // fps + errors for a page and a scenario: node test/fps.mjs page "js"
-const { chromium } = await import('/home/mark/scripts/tracker/node_modules/playwright/index.mjs');
+const { chromium } = await import('playwright').catch(() => import(process.env.PLAYWRIGHT || '/home/mark/scripts/tracker/node_modules/playwright/index.mjs'));
 const [page0 = 'index.html', js = ''] = process.argv.slice(2);
 const b = await chromium.launch({ headless: true, args: ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const p = await b.newPage({ viewport: { width: 1600, height: 900 } }); const errs = [];

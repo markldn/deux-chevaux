@@ -1,6 +1,6 @@
 // Headless real-GPU screenshots. node test/view.mjs out.png 'js to run before (sets views)' [waitMs] [w] [h] [page]
 import fs from 'fs';
-const { chromium } = await import(process.env.PLAYWRIGHT || '/home/mark/scripts/tracker/node_modules/playwright/index.mjs');
+const { chromium } = await import('playwright').catch(() => import(process.env.PLAYWRIGHT || '/home/mark/scripts/tracker/node_modules/playwright/index.mjs'));
 const [out = '/tmp/v.png', js = '', wait = 2500, w = 1280, h = 720, page0 = 'dev.html'] = process.argv.slice(2);
 const b = await chromium.launch({ headless: true, args: ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu', '--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage({ viewport: { width: +w, height: +h } });

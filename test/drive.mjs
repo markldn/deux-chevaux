@@ -1,5 +1,5 @@
 // drive-mode reproduction: crash into a plane tree, press P, screenshots. node test/drive.mjs outprefix
-const { chromium } = await import('/home/mark/scripts/tracker/node_modules/playwright/index.mjs');
+const { chromium } = await import('playwright').catch(() => import(process.env.PLAYWRIGHT || '/home/mark/scripts/tracker/node_modules/playwright/index.mjs'));
 const out = process.argv[2] || '/tmp/claude-1000/ct/dr';
 const b = await chromium.launch({ headless: true, args: ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } }); const errs = [];
