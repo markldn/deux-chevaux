@@ -105,7 +105,7 @@ export function createAudio() {
     ctx: A,
     event(k) { if (k === 'glass') glass(); if (k === 'crash') crunch(1); },
     update(s) {
-      const active = s.mode !== 'menu' && !s.paused, rpm = s.rpm || 0, f = rpm / 60;
+      const active = s.mode !== 'menu' && !s.paused && !s.frozen, rpm = s.rpm || 0, f = rpm / 60;
       const scale = s.slow ? .65 : 1, run = s.runTime;
       if (lastRun !== null && run < lastRun) { lastCrash = lastGlass = -10; prevPulse = prevGlass = 0; }
       lastRun = run;

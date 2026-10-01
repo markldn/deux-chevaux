@@ -9,14 +9,14 @@ try {
   const results = await page.evaluate(async source => {
     const { createAudio } = await import('data:text/javascript;base64,' + btoa(source));
     const results = {};
-    for (const kind of ['menu', 'approach', 'engine', 'muted', 'impact', 'glass', 'film']) {
+    for (const kind of ['menu', 'approach', 'engine', 'muted', 'frozen', 'impact', 'glass', 'film']) {
       const ctx = new OfflineAudioContext(2, 44100 * 3, 44100);
       const old = window.AudioContext; window.AudioContext = function () { return ctx; };
       const audio = createAudio(); window.AudioContext = old;
       const update = t => {
-        const film = kind === 'film', engine = kind === 'engine' || kind === 'muted';
+        const film = kind === 'film', engine = ['engine', 'muted', 'frozen'].includes(kind);
         audio.update({ mode: kind === 'menu' || film && t >= 2 ? 'menu' : film ? 'film' : 'lab',
-          rpm: engine ? 2800 : 0, throttle: .5, speed: engine ? 12 : 0, soft: kind === 'approach' || kind === 'impact',
+          rpm: engine ? 2800 : 0, throttle: .5, speed: engine ? 12 : 0, slip: kind === 'frozen' ? .6 : 0, frozen: kind === 'frozen' && t >= .5, soft: kind === 'approach' || kind === 'impact',
           pulse: kind === 'approach' ? 20 : kind === 'impact' && t >= .5 && t < .65 ? 30 : 0, impact: kind !== 'approach', glass: 0, runTime: t,
           filmTime: t < 1 ? t : t + 50, shot: t < 1 ? 0 : 3, paused: film && t >= 1.5 && t < 2 });
       };
@@ -50,5 +50,6 @@ try {
   assert(results.impact.early === 0, 'impact sounded before collision');
   assert(results.film.tail < .0001, 'score did not stop after leaving film');
   assert(results.muted.tail < .0001, 'mute did not silence the running engine');
+  assert(results.frozen.early > .001 && results.frozen.tail < .0001, 'driving noise carried into the frozen anatomy shot');
   console.log('Audio synthesis and film transport checks passed');
 } finally { await browser.close(); }

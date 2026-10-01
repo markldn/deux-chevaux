@@ -3883,7 +3883,7 @@ void main(){vec2 u=vU;
         if (k === "crash") crunch(1);
       },
       update(s) {
-        const active = s.mode !== "menu" && !s.paused, rpm = s.rpm || 0, f = rpm / 60;
+        const active = s.mode !== "menu" && !s.paused && !s.frozen, rpm = s.rpm || 0, f = rpm / 60;
         const scale = s.slow ? 0.65 : 1, run = s.runTime;
         if (lastRun !== null && run < lastRun) {
           lastCrash = lastGlass = -10;
@@ -4471,7 +4471,8 @@ void main(){vec2 u=vU;
       tow: S.phase === "tow",
       paused: mode === "film" ? film?.paused : S.paused,
       filmTime: film?.time,
-      shot: film?.shot
+      shot: film?.shot,
+      frozen: A.frozen
     });
   }
   requestAnimationFrame(loop);

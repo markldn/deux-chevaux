@@ -256,7 +256,7 @@ function loop(now) {
   audio?.update({ rpm: A.rpm, throttle: A.throttle, speed: len(A.vel), slip: Math.max(...A.slip) * (A.mode === 'rigid' ? 1 : 0), soft: A.mode === 'soft' || !!rp,
     pulse: rp ? rp.rec.pulse : S.phase === 'crash' ? S.lastPulse || 0 : 0, impact: rp ? rp.rec.impact : !!W.hitBodies[A.body], glass: rp ? rp.rec.glass || 0 : A.glassN || 0,
     runTime: rp ? rp.t : W.t, slow: !!rp || S.ts < 1, mode, tow: S.phase === 'tow', paused: mode === 'film' ? film?.paused : S.paused,
-    filmTime: film?.time, shot: film?.shot });
+    filmTime: film?.time, shot: film?.shot, frozen: A.frozen });
 }
 requestAnimationFrame(loop);
 // ---------------- HUD
