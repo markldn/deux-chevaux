@@ -38,7 +38,7 @@ export function createCar(W, body, opt = {}) {
   C.F0 = C.M * 9.81 / 4;
   C.world = p => add(qrot(C.rot, p), C.pos);
   C.place = (p, yaw = 0, v = 0) => {
-    C.rot = qaxis([0, 1, 0], yaw); C.pos = p.slice(); C.vel = qrot(C.rot, [0, 0, v]); C.ang = [0, 0, 0];
+    C.rot = qaxis([0, 1, 0], yaw); C.pos = p.slice(); C.pos[1] += C.W.ground(p[0], p[2]); C.vel = qrot(C.rot, [0, 0, v]); C.ang = [0, 0, 0];
     C.c = [0, 0, 0, 0]; C.cPrev = [0, 0, 0, 0]; C.mode = 'rigid'; W.awake[body] = 0; C.calm = 0;
     syncNodes(C, 0);
   };
@@ -82,7 +82,7 @@ function rigidStep(C, h) {
   for (let i = 0; i < 4; i++) {
     if (C.lost[i]) { C.contact[i] = 0; continue; }
     const Pd = C.world(C.hubD[i]);
-    const gy = height(Pd[0], Pd[2]);
+    const gy = C.W.ground(Pd[0], Pd[2]);
     let cc = (gy + WR - Pd[1]) / Math.max(up[1], .2);
     if (up[1] < .3) cc = -1;
     C.contact[i] = cc > DROOP ? 1 : 0;
@@ -97,7 +97,7 @@ function rigidStep(C, h) {
     if (C.c[i] > BUMP) Fs += 9e4 * (C.c[i] - BUMP) + 3000 * Math.max(cv, 0);
     Fs = Math.max(Fs, 0); C.load[i] = Fs;
     const Pd = C.world(C.hubD[i]), cp = add(Pd, scl(up, C.c[i] - WR));
-    const gn = normalAt(cp[0], cp[2]);
+    const gn = C.W.groundN(cp[0], cp[2]);
     force(scl(up, Fs), cp);
     // tyre
     const st = i < 2 ? C.steer : 0, wf = norm(add(scl(fw, Math.cos(st)), scl(side, Math.sin(st)))), ws = cross(gn, wf);
@@ -139,7 +139,7 @@ function touches(C, dt) {
     const p = C.world([C.loc[i * 3], C.loc[i * 3 + 1], C.loc[i * 3 + 2]]), v = add(C.vel, cross(C.ang, sub(p, comW)));
     const q = add(p, scl(v, dt * 1.5));
     for (const c of cols) if (c.pen && c.pen(q[0], q[1], q[2], .05) > 0) return true;
-    if (q[1] < height(q[0], q[2]) + .01 && C.L.nodes[i].p[1] > .5) return true;   // body on the ground: rollover
+    if (q[1] < W.ground(q[0], q[2]) + .01 && C.L.nodes[i].p[1] > .5) return true;   // body on the ground: rollover
   }
   for (const o of C.ext) if (o.near && o.near(C)) return true;
   return false;
@@ -150,7 +150,7 @@ export function goSoft(C) {
   const W = C.W, comW = C.world(C.com);
   syncNodes(C, 1);
   C.mode = 'soft'; W.awake[C.body] = 1; C.calm = 0; C.crashT = W.t;
-  C.fitQ = C.rot.slice(); C.fitC0 = null;
+  C.fitQ = C.rot.slice(); C.fitC0 = null; initFit(C);
   for (const o of C.ext) o.onSoft && o.onSoft(C);
 }
 function syncNodes(C, withVel) {
@@ -164,16 +164,17 @@ function syncNodes(C, withVel) {
   }
 }
 // ---------------- soft: the world is stepped by the caller; here we read the car back out of it
-export function readSoft(C, dt) {
+function initFit(C) { const n = C.n, m = C.mass; C.ref = C.loc.slice(); let M = 0, c = [0, 0, 0]; for (let i = 0; i < n; i++) { M += m[i]; for (let k = 0; k < 3; k++) c[k] += m[i] * C.ref[i * 3 + k]; } C.fitC0 = c.map(v => v / M); C.fitM = M; }
+export function readSoft(C, dt, X = C.W.x, V = C.W.v, dmgSrc = null) {
   const W = C.W, n = C.n, b = C.base, m = C.mass;
   // best-fit rigid frame (shape matching against the shape the car had when it went soft)
-  if (!C.fitC0) { C.ref = C.loc.slice(); let M = 0, c = [0, 0, 0]; for (let i = 0; i < n; i++) { M += m[i]; for (let k = 0; k < 3; k++) c[k] += m[i] * C.ref[i * 3 + k]; } C.fitC0 = c.map(v => v / M); C.fitM = M; }
+  if (!C.fitC0) initFit(C);
   let cw = [0, 0, 0], vel = [0, 0, 0];
-  for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) { cw[k] += m[i] * W.x[(b + i) * 3 + k]; vel[k] += m[i] * W.v[(b + i) * 3 + k]; }
+  for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) { cw[k] += m[i] * X[(b + i) * 3 + k]; vel[k] += m[i] * V[(b + i) * 3 + k]; }
   cw = cw.map(v => v / C.fitM); vel = vel.map(v => v / C.fitM);
   const A = [0, 0, 0, 0, 0, 0, 0, 0, 0], c0 = C.fitC0;
   for (let i = 0; i < n; i++) {
-    const k = (b + i) * 3, px = W.x[k] - cw[0], py = W.x[k + 1] - cw[1], pz = W.x[k + 2] - cw[2], rx = C.ref[i * 3] - c0[0], ry = C.ref[i * 3 + 1] - c0[1], rz = C.ref[i * 3 + 2] - c0[2], mm = m[i];
+    const k = (b + i) * 3, px = X[k] - cw[0], py = X[k + 1] - cw[1], pz = X[k + 2] - cw[2], rx = C.ref[i * 3] - c0[0], ry = C.ref[i * 3 + 1] - c0[1], rz = C.ref[i * 3 + 2] - c0[2], mm = m[i];
     A[0] += mm * px * rx; A[1] += mm * py * rx; A[2] += mm * pz * rx; A[3] += mm * px * ry; A[4] += mm * py * ry; A[5] += mm * pz * ry; A[6] += mm * px * rz; A[7] += mm * py * rz; A[8] += mm * pz * rz;
   }
   const qq = new Float64Array(C.fitQ); extractRotation(A, qq, 0, 6); C.fitQ = Array.from(qq);
@@ -181,19 +182,20 @@ export function readSoft(C, dt) {
   const dq = qmul(C.rot, qconj(prevRot)); C.ang = scl(dq.slice(1), 2 * Math.sign(dq[0]) / Math.max(dt, 1e-4));
   C.vel = vel;
   const iq = qconj(C.rot);
-  let maxRel = 0;
+  let maxRel = 0; const prev = C.locPrev || (C.locPrev = C.loc.slice());
   for (let i = 0; i < n; i++) {
-    const k = (b + i) * 3, l = qrot(iq, [W.x[k] - C.pos[0], W.x[k + 1] - C.pos[1], W.x[k + 2] - C.pos[2]]);
+    const k = (b + i) * 3, l = qrot(iq, [X[k] - C.pos[0], X[k + 1] - C.pos[1], X[k + 2] - C.pos[2]]);
     C.loc[i * 3] = l[0]; C.loc[i * 3 + 1] = l[1]; C.loc[i * 3 + 2] = l[2];
-    const rv = Math.hypot(W.v[k] - vel[0], W.v[k + 1] - vel[1], W.v[k + 2] - vel[2]); if (rv > maxRel) maxRel = rv;
+    maxRel += Math.hypot(l[0] - prev[i * 3], l[1] - prev[i * 3 + 1], l[2] - prev[i * 3 + 2]) / n / Math.max(dt, 1e-3);
   }
+  prev.set(C.loc);
   nodeFramesL(C.loc, C.restL, C.adj, C.q, 1);
-  for (let i = 0; i < n; i++) { let s = 0; for (const j of incOf(C, i)) if (W.bk[j] > 1e5 && W.bm[j] !== 1) s += W.pl[j] + (W.alive[j] ? 0 : .3); C.dmg[i] = Math.min(1, s * .6); }
+  if (dmgSrc) C.dmg.set(dmgSrc); else for (let i = 0; i < n; i++) { let s = 0; for (const j of incOf(C, i)) if (W.bk[j] > 1e5 && W.bm[j] !== 1) s += W.pl[j] + (W.alive[j] ? 0 : .3); C.dmg[i] = Math.min(1, s * .6); }
   // wheels: a hub that left its arm is lost
-  C.L.hubs.forEach((h, i) => { const d = Math.hypot(C.loc[(h - b) * 3] - WHEELS[i][0], C.loc[(h - b) * 3 + 2] - WHEELS[i][2]); if (d > .5) C.lost[i] = 1; });
+  if (!dmgSrc) C.L.hubs.forEach((h, i) => { const d = Math.hypot(C.loc[(h - b) * 3] - WHEELS[i][0], C.loc[(h - b) * 3 + 2] - WHEELS[i][2]); if (d > .5) C.lost[i] = 1; });
   C.dirty = true;
   C.relV = maxRel; C.speed = len(vel);
-  C.calm = maxRel < .35 && C.speed < 6 ? C.calm + dt : 0;
+  C.calm = maxRel < .05 && C.speed < .4 ? C.calm + dt : 0;
 }
 const incCache = new WeakMap();
 function incOf(C, i) {

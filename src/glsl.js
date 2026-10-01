@@ -19,7 +19,8 @@ float plough(vec2 p){return boxd(p,FIELD)>0.?0.:.075*sin(p.x*8.378)*smoothstep(0
 float hgt(vec2 p){float d=length(p+vec2(0,100));
  float h=(fbm(p/520.,4)-.5)*34.*smoothstep(80.,600.,d);
  h+=((fbm(p/90.+vec2(5,0),3)-.5)*4.+(vnoise(p/7.)-.5)*.25)*(1.-roadM(p));
- h*=smoothstep(0.,45.,boxd(p,FAC));return h+plough(p);}
+ h*=smoothstep(0.,45.,boxd(p,FAC));return h;}
+float hgtP(vec2 p){return hgt(p)+plough(p);}
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,s,-s,c);}
 `;
 export const LIGHT = `
@@ -115,7 +116,7 @@ void main(){vec2 p=vP.xz;float d=length(vP-uCam);vec3 N=normalize(vN);
  c=mix(c,vec3(.06,.1,.03),hedge*.8);
  // the ploughed test field: furrows you can see and feel
  float fm=boxd(p,FIELD);
- if(fm<=0.){float f=sin(p.x*8.378);c=mix(vec3(.15,.1,.06),vec3(.32,.22,.14),f*.5+.5)*(.8+.4*n3);rough=1.;}
+ if(fm<=0.){float f=sin(p.x*8.378),e=smoothstep(0.,4.,-fm);c=mix(vec3(.13,.09,.055),vec3(.34,.24,.15),f*.5+.5)*(.8+.4*n3);rough=1.;N=normalize(N+vec3(-.63*cos(p.x*8.378)*e,0,0)+vec3(n2-.5,0,n3-.5)*.25);}
  // facility concrete + runway
  float fac=boxd(p,FAC);
  if(fac<=0.){vec3 con=vec3(.27,.265,.25)*(.85+.15*n2)*(.9+.1*n3);
@@ -164,9 +165,11 @@ void main(){
  vec3 R=vR;vec3 alb=vC.rgb;float rough=vC.a,metal=0.,cc=0.;vec3 em=vec3(0);
  float win=vK.x,seam=vK.y,canv=vK.z,s=vK.w;
 #ifdef GLASS
+ if(uXray>0.&&vM.z<.5){vec3 V=normalize(uCam-vW);float f=pow(1.-abs(dot(N,V)),3.);oC=vec4(vec3(.3,.75,1.)*(.08+1.6*f)*uXray,(.05+.5*f)*uXray);return;}
  if(mat!=0||win>0.)discard;
 #else
  if(mat==0&&win<0.)discard;
+ if(uXray>0.&&vM.z<.5)discard;
 #endif
  if(mat==0){ // body paint and everything painted onto the shell
   float roofEdge=mix(.37,-1.52,uRoof);
@@ -229,7 +232,6 @@ void main(){
    c+=vec3(.6)*web*uCrack;a=max(a,web*uCrack*.8);}
   fog(c,vW);oC=vec4(c+tint*a*.2,a);return;}
 #endif
- if(uXray>0.&&vM.z<.5){vec3 V=normalize(uCam-vW);float f=pow(1.-abs(dot(N,V)),2.);oC=vec4(vec3(.25,.7,1.)*(.2+2.*f)*uXray,1);return;}
  vec3 col=shade(vW,N,alb,rough,metal,ao,cc,em);oC=vec4(col,1);}`;
 export const SH_FS = `void main(){}`;
 // ---------------------------------------------------------------- generic static mesh (barrier, buildings, props)
@@ -243,6 +245,8 @@ void main(){vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;int m=int(vM.x+.5);vec3
  if(m==23){vec2 h=vR.xy*vec2(40.,46.);vec2 f=abs(fract(h+vec2(.5*floor(h.y),0.))-.5);a=mix(vec3(.75,.76,.78),vec3(.3),smoothstep(.42,.5,max(f.x,f.y)));mt=.8;r=.4;} // honeycomb
  if(m==24){em=a*6.;}                                 // lamp
  if(m==25){float c=step(.5,fract(vR.x*.8));a*=.8+.2*c;}  // corrugated wall
+ if(m==27){float b=smoothstep(.45,.55,vnoise(vec2(atan(vR.x,vR.z)*3.,vR.y*2.5)+vnoise(vR.xy*9.)));a=mix(vec3(.4,.38,.3),vec3(.66,.63,.5),b)*(.8+.3*vnoise(vR.xy*40.));r=.9;}
+ if(m==28){float st=fract(vR.x*14.+vnoise(vR.yz*20.));a*=.75+.4*st*vnoise(vR.yz*60.);r=1.;}
  if(m==26){vec3 V=normalize(uCam-vW);float f=.04+.96*pow(1.-abs(dot(N,V)),5.);vec3 c=env(reflect(-V,N),.05)*f;fog(c,vW);oC=vec4(c,.15+f);return;}
  vec3 c=shade(vW,N,a,r,mt,vM.z,0.,em);oC=vec4(c,1);}`;
 // ---------------------------------------------------------------- trees (instanced): trunk + canopy blobs, mottled plane-tree bark

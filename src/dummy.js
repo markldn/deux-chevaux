@@ -115,12 +115,17 @@ export function buildDummyMesh() {
   limb('elL', 'haL', .04, .035, 13); limb('elR', 'haR', .04, .035, 14);
   blob(g, P('haL'), [.035, .045, .05], 2.5, o(15)); blob(g, P('haR'), [.035, .045, .05], 2.5, o(16));
   for (const n of ['knL', 'knR', 'elL', 'elR']) blob(g, P(n), [.05, .05, .05], 2, o(SEGS.findIndex(s => s[2] === n), K));
+  // the belt: five straps on stretchable bones 17-21
+  const BR = beltRest(P);
+  BELT.forEach(([a, b], i) => tube(g, [BR[a], add(BR[a], scl(sub(BR[b], BR[a]), .5)), BR[b]], .014, 6, { mat: 5, col: [.16, .16, .17, .6], bone: 17 + i, part: 5 }));
   for (let i = 0; i < g.M.length / 4; i++) g.M[i * 4 + 2] = .8;
   return { g, J: new Float32Array(g.P.length / 3 * 4), Wt: new Float32Array(g.P.length / 3 * 4) };
 }
+const BELT = [['up', 'sh'], ['sh', 'ch'], ['ch', 'bu'], ['si', 'pe'], ['pe', 'bu']];
+function beltRest(P) { return { up: [.68, 1.36, -.4], sh: add(P('shL'), [-.02, .06, .02]), ch: add(P('chest'), [0, 0, .135]), bu: [.1, .33, -.28], si: [.62, .34, -.45], pe: add(P('pelvis'), [0, .03, .15]) }; }
 // bone matrices from the particles: each segment's frame now vs in the rest pose
-export function dummyBones(D, carRot) {
-  const W = D.W, P = n => { const i = D.ids[IDX[n]] * 3; return [W.x[i], W.x[i + 1], W.x[i + 2]]; }, R0 = n => PTS[IDX[n]][1];
+export function dummyBones(D, carRot, X = D.W.x) {
+  const P = n => { const i = D.ids[IDX[n]] * 3; return [X[i], X[i + 1], X[i + 2]]; }, R0 = n => PTS[IDX[n]][1];
   const B = new Float32Array(24 * 16), fwd = qrot(carRot, [0, 0, 1]);
   const fr = (a, b, side) => { const y = norm(sub(b, a)); let x = norm(cross(side, y)); if (!isFinite(x[0])) x = [1, 0, 0]; const z = cross(x, y); return [x, y, z]; };
   const m4 = (f, o) => new Float32Array([...f[0], 0, ...f[1], 0, ...f[2], 0, ...o, 1]);
@@ -130,6 +135,16 @@ export function dummyBones(D, carRot) {
     const sn = i >= 5 && i <= 10 ? norm(sub(P('knL'), P('knR'))) : sideNow, sr = i >= 5 && i <= 10 ? norm(sub(R0('knL'), R0('knR'))) : sideRest;
     const fN = fr(P(a), P(b), sn), fR = fr(R0(a), R0(b), sr);
     B.set(mul(m4(fN, P(o)), inv(fR, R0(o))), i * 16);
+  });
+  // belt straps: stretch each rest segment onto its current end points
+  const fw = n => norm(cross(sub(n('shL'), n('shR')), sub(n('neck'), n('pelvis'))));
+  const an = i => [X[D.anchors[i] * 3], X[D.anchors[i] * 3 + 1], X[D.anchors[i] * 3 + 2]], fN = fw(P);
+  const cur = { up: an(2), si: an(0), bu: an(1), sh: add(add(P('shL'), scl(fN, .02)), [0, .06, 0]), ch: add(P('chest'), scl(fN, .135)), pe: add(add(P('pelvis'), scl(fN, .15)), [0, .03, 0]) };
+  const rest = beltRest(R0);
+  BELT.forEach(([a, b], i) => {
+    const seg = (p, q) => { const u = sub(q, p), l = len(u) || 1e-6, un = scl(u, 1 / l); let v = norm(cross(un, [0, 1, 0])); if (!isFinite(v[0]) || len(v) < .5) v = [1, 0, 0]; return [un, v, cross(un, v), l]; };
+    const [u0, v0, w0, l0] = seg(rest[a], rest[b]), [u1, v1, w1, l1] = seg(cur[a], cur[b]);
+    B.set(mul(m4([scl(u1, l1 / l0), v1, w1], cur[a]), inv([u0, v0, w0], rest[a])), (17 + i) * 16);
   });
   return B;
 }

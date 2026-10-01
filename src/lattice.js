@@ -24,7 +24,7 @@ export const MATS = {
   SPRING: { k: 1.5e5, fyc: 1e9, fyt: 1e9, brk: 9, damp: .8 },
   STEER: { k: 6e6, fyc: 5000, fyt: 9000, brk: .8, damp: .7 },
 };
-scaleYield(3.33);
+scaleYield(3.33 * (+(globalThis.process?.env?.YS) || 1));
 const C = { SHEET: 0, FLOOR: 1, RAIL: 2, ENG: 3, GLASS: 4, CANVAS: 5, BUMPER: 6, BULK: 7, DASH: 8, WING: 9, HUB: 10, PIVOT: 11, STEER: 12 };
 export const CLS = C;
 const MASSW = [1, 1.6, 2.2, 0, 1.1, .35, 1.6, 1.4, 1.2, .8, 0, 1, 0];

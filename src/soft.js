@@ -3,7 +3,7 @@
 // crash's energy goes. Compression yield < tension yield (thin sheet buckles), densification stops flow below
 // ~30 % length, and tension past the break strain tears the beam. Nodes collide with analytic colliders (ground,
 // boxes, crushable barrier faces, poles) and with nodes of other bodies (spatial hash).
-export const G = -9.81;
+export const G = -9.81, VMAX = 45;
 export function World(cap = 6000, bcap = 60000) {
   const W = {
     n: 0, nb: 0, t: 0,
@@ -57,7 +57,9 @@ export function step(W, dt, sub) {
     collide(W, h, s);
     for (let i = 0; i < n; i++) {
       if (!w[i] || !W.awake[W.body[i]]) continue;
-      const k = i * 3; v[k] = (x[k] - p[k]) / h; v[k + 1] = (x[k + 1] - p[k + 1]) / h; v[k + 2] = (x[k + 2] - p[k + 2]) / h;
+      const k = i * 3; let vx = (x[k] - p[k]) / h, vy = (x[k + 1] - p[k + 1]) / h, vz = (x[k + 2] - p[k + 2]) / h;
+      const s2 = vx * vx + vy * vy + vz * vz; if (s2 > VMAX * VMAX) { const f = VMAX / Math.sqrt(s2); vx *= f; vy *= f; vz *= f; } // a deep contact resolved in one step must not become a launch
+      v[k] = vx; v[k + 1] = vy; v[k + 2] = vz;
     }
     dampBeams(W, h);
     friction(W, h);
@@ -69,7 +71,7 @@ function solveBeams(W, h2, rev) {
   const { x, w, ba, bb, L0, Lr, bk, fyc, fyt, brk, alive, pl, bf } = W, nb = W.nb;
   for (let q = 0; q < nb; q++) {
     const j = rev ? nb - 1 - q : q;
-    if (!alive[j]) continue;
+    if (!alive[j] || !W.awake[W.body[ba[j]]]) continue;
     const a = ba[j] * 3, b = bb[j] * 3, wa = w[ba[j]], wb = w[bb[j]], ws = wa + wb;
     if (!ws) continue;
     let dx = x[a] - x[b], dy = x[a + 1] - x[b + 1], dz = x[a + 2] - x[b + 2];
@@ -98,7 +100,7 @@ const densify = r => r > .45 ? 1 : 1 + (.45 - r) * (.45 - r) * 120;
 function dampBeams(W, h) {
   const { x, v, w, ba, bb, bd, alive } = W;
   for (let j = 0; j < W.nb; j++) {
-    if (!alive[j] || !bd[j]) continue;
+    if (!alive[j] || !bd[j] || !W.awake[W.body[ba[j]]]) continue;
     const a = ba[j] * 3, b = bb[j] * 3, wa = w[ba[j]], wb = w[bb[j]], ws = wa + wb; if (!ws) continue;
     let dx = x[a] - x[b], dy = x[a + 1] - x[b + 1], dz = x[a + 2] - x[b + 2]; const L = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1; dx /= L; dy /= L; dz /= L;
     const vr = (v[a] - v[b]) * dx + (v[a + 1] - v[b + 1]) * dy + (v[a + 2] - v[b + 2]) * dz;
@@ -150,7 +152,7 @@ function collide(W, h, s) {
     hNext[i] = hHead[hk]; hHead[hk] = i;
   }
   for (let q = 0; q < act.length; q++) {
-    const i = act[q]; if (!r[i]) continue; const k = i * 3, bi = W.body[i];
+    const i = act[q]; if (!r[i] || !W.awake[W.body[i]]) continue; const k = i * 3, bi = W.body[i];
     const cx = Math.floor(x[k] * inv), cy = Math.floor(x[k + 1] * inv), cz = Math.floor(x[k + 2] * inv);
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
       for (let j = hHead[hashc(cx + a, cy + b, cz + c)]; j >= 0; j = hNext[j]) {
@@ -219,20 +221,21 @@ export function boxCollider(c, e, yaw = 0, o = {}) {
     const k = i * 3, x = W.x;
     const dx = x[k] - C.c[0], dy = x[k + 1] - C.c[1], dz = x[k + 2] - C.c[2];
     let lx = dx * ax[0] + dz * ax[2], ly = dy, lz = dx * az[0] + dz * az[2];
-    let ez = e[2], cell = -1;
-    if (C.cd && lz < 0) { const cx = Math.floor((lx + e[0]) / o.crush.cell), cy = Math.floor((ly + e[1]) / o.crush.cell); if (cx >= 0 && cy >= 0 && cx < C.cnx && cy < C.cny) { cell = cx + cy * C.cnx; ez = e[2] - C.cd[cell]; } }
-    const qx = Math.abs(lx) - e[0] - ri, qy = Math.abs(ly) - e[1] - ri, qz = (lz < 0 ? -lz - ez : lz - e[2]) - ri;
-    if (qx >= 0 || qy >= 0 || qz >= 0) return;
-    // push out along the axis of least penetration
-    let nx = 0, ny = 0, nz = 0, d;
-    if (qz >= qx && qz >= qy) { d = -qz; nz = lz < 0 ? -1 : 1; }
-    else if (qx >= qy) { d = -qx; nx = Math.sign(lx); } else { d = -qy; ny = Math.sign(ly); }
-    if (cell >= 0 && nz < 0) { // honeycomb crushes: it only pushes back with its crush stress
-      const m = 1 / W.w[i], h = W._h || 1e-3, maxPush = o.crush.stress * o.crush.cell * o.crush.cell * h * h / m / Math.max(1, o.crush.share);
-      const push = Math.min(d, maxPush); const rest = d - push;
-      if (rest > 0 && C.cd[cell] < o.crush.depth) { C.cd[cell] = Math.min(o.crush.depth, C.cd[cell] + rest); }
-      d = push;
+    let cell = -1;
+    if (C.cd) { // honeycomb: a node is only ever pushed back out of the front face, which retreats as it crushes
+      const cx = Math.floor((lx + e[0]) / o.crush.cell), cy = Math.floor((ly + e[1]) / o.crush.cell);
+      if (cx < 0 || cy < 0 || cx >= C.cnx || cy >= C.cny || lz > e[2]) return;
+      cell = cx + cy * C.cnx; const F = -e[2] + C.cd[cell];
+      let d = lz - F + ri; if (d <= 0) return;
+      const m = 1 / W.w[i], h = W._h || 1e-3, maxPush = o.crush.stress * o.crush.cell * o.crush.cell * h * h / m / (o.crush.share || 1);
+      if (C.cd[cell] < o.crush.depth) { const push = Math.min(d, maxPush); C.cd[cell] = Math.min(o.crush.depth, C.cd[cell] + d - push); d = push; }
+      const wx = -az[0], wz = -az[2]; x[k] += wx * d; x[k + 2] += wz * d; C.force += d / W.w[i]; addC(i, -1, wx, 0, wz, d, C.mu); return;
     }
+    const qx = Math.abs(lx) - e[0] - ri, qy = Math.abs(ly) - e[1] - ri, qz = Math.abs(lz) - e[2] - ri;
+    if (qx >= 0 || qy >= 0 || qz >= 0) return;
+    let nx = 0, ny = 0, nz = 0, d;
+    if (qz >= qx && qz >= qy) { d = -qz; nz = Math.sign(lz); }
+    else if (qx >= qy) { d = -qx; nx = Math.sign(lx); } else { d = -qy; ny = Math.sign(ly); }
     const wx = nx * ax[0] + nz * az[0], wz = nx * ax[2] + nz * az[2];
     x[k] += wx * d; x[k + 1] += ny * d; x[k + 2] += wz * d;
     C.force += d / W.w[i];

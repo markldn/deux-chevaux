@@ -5,7 +5,7 @@ const [out = '/tmp/v.png', js = '', wait = 2500, w = 1280, h = 720, page0 = 'dev
 const b = await chromium.launch({ headless: true, args: ['--use-angle=vulkan', '--enable-features=Vulkan', '--ignore-gpu-blocklist', '--enable-gpu', '--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage({ viewport: { width: +w, height: +h } });
 const errs = [];
-p.on('pageerror', e => errs.push('PAGEERROR ' + e.message));
+p.on('pageerror', e => errs.push('PAGEERROR ' + e.message + ' ' + (e.stack || '').split('\n').slice(1, 4).join(' | ')));
 p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning' || m.text().startsWith('LOG')) errs.push(m.type() + ' ' + m.text().slice(0, 600)); });
 const t0 = Date.now();
 await p.goto('http://127.0.0.1:9070/' + page0);
