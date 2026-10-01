@@ -116,7 +116,13 @@ function rigidStep(C, h) {
     const fm = Math.hypot(Fx, Fy), lim = MU * Nn;
     C.slip[i] = fm > lim ? (fm - lim) / (lim + 1) : Math.abs(vs) > 1.5 ? .3 : 0;
     if (fm > lim) { Fx *= lim / fm; Fy *= lim / fm; }
-    force(add(scl(wf, Fx), scl(ws, Fy)), cp);
+    force(scl(ws, Fy), cp);
+    // longitudinal force goes into the body through the swinging arm: at the pivot height (~0.31 m), plus the arm's
+    // couple on the spring. Leading arms in front: driving pulls the nose down, braking lifts it (anti-lift / anti-dive),
+    // which is why a front-driven 2CV doesn't squat like a rear-driven car
+    const arm = i < 2 ? -.1 : .1;
+    force(scl(wf, Fx), add(cp, scl(up, .31)));
+    force(scl(up, arm * Fx), add(cp, scl(up, .31)));
     C.wv[i] = vl / WR;
   }
   // aero drag (Cd 0.51, A ~1.75 m^2)

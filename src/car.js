@@ -17,12 +17,19 @@ export const P_BODY = 0, P_CHASSIS = 1, P_ENGINE = 2, P_SUSP = 3, P_WHEEL = 4, P
 
 // ---- body shell: one loft of cross-sections. z -> [yTop, yBot, hwBot, hwTop, squareness]
 const SEC = table([
-  [1.81, .77, .40, .38, .33, 7], [1.70, .835, .40, .42, .36, 7], [1.40, .89, .42, .45, .40, 7], [1.00, .965, .45, .50, .46, 7],
+  [1.81, .74, .40, .37, .33, 3.4], [1.70, .80, .40, .41, .36, 3.6], [1.40, .885, .42, .45, .40, 4.4], [1.00, .965, .45, .50, .46, 5.5],
   [.72, 1.02, .42, .58, .55, 6], [.62, 1.04, .32, .66, .60, 5.5], [.55, 1.16, .30, .68, .61, 5], [.45, 1.33, .30, .69, .615, 5],
   [.36, 1.455, .30, .69, .62, 5], [.20, 1.535, .30, .69, .625, 5], [0, 1.578, .30, .69, .625, 5], [-.30, 1.588, .30, .69, .625, 5],
   [-.65, 1.565, .30, .69, .62, 5], [-.95, 1.505, .30, .685, .61, 5], [-1.25, 1.39, .30, .68, .59, 4.5], [-1.50, 1.20, .31, .67, .57, 4],
   [-1.70, .98, .32, .655, .55, 3.6], [-1.84, .72, .33, .62, .52, 3.3], [-1.92, .52, .34, .58, .48, 3]]);
 export const yTop = z => SEC(z)[0];
+// the ends of the shell: the nose rounds over the last 24 cm (profile taken from a 3D model of a 1964 2CV, scaled), closing towards its bottom edge (so the grille face
+// leans back and the top curves down into it, as on the real car); the tail rounds over 3.5 cm
+export function capXform(z, x, y) {
+  if (z > ZF - .24) { const c = Math.min(1, Math.max(0, (ZF - z) / .24)), k = Math.sqrt(Math.max(0, 1 - (1 - c) ** 2)), cy = SEC(z)[1] + .02; return [x * (.25 + .75 * k), cy + (y - cy) * k]; }
+  if (z < -1.89) { const c = Math.min(1, Math.max(0, (z - ZR) / .035)), k = Math.sqrt(Math.max(0, 1 - (1 - c) ** 2)); return [x * k, .44 + (y - .44) * k]; }
+  return [x, y];
+}
 export const ZF = 1.815, ZR = -1.925;
 // wings (bolt-on). z -> [top y, inner x, outer x]
 export const FW = table([[1.875, .47, .47, .62], [1.82, .66, .43, .69], [1.70, .79, .44, .735], [1.45, .825, .46, .74], [1.20, .83, .465, .74], [1.0, .79, .48, .74], [.82, .67, .54, .735], [.66, .5, .6, .725], [.55, .37, .62, .72]]);
@@ -79,15 +86,16 @@ export function buildCar() {
   const g = Geo(), C = (r, g_, b, ro = .5) => [r, g_, b, ro];
   const paint = { mat: PAINT, col: C(1, 1, 1, .3), part: P_BODY };
   // ---------------- body shell
-  const NU = 150, NV = 240, secs = [];
-  const zs = []; for (let i = 0; i <= NU; i++) { const t = i / NU; zs.push(lerp(ZF, ZR, t)); }
+  const NV = 240, secs = [], zs = [];
+  for (let z = ZF; z > ZF - .3; z -= .007) zs.push(z);           // fine rows where the nose rounds over
+  for (let z = ZF - .3; z > ZR + .06; z -= .025) zs.push(z);
+  for (let z = ZR + .06; z > ZR; z -= .008) zs.push(z); zs.push(ZR);
+  const NU = zs.length - 1;
   for (const z of zs) secs.push(section(z, NV));
   grid(g, NU, NV, (u, v) => {
     const i = Math.round(u * NU), j = Math.round(v * NV), z = zs[i], p = secs[i][j];
-    // rounded caps: collapse the end sections toward their centre over the last ~3 cm
-    const cap = z > 1.77 ? clamp((ZF - z) / .045, 0, 1) : z < -1.89 ? clamp((z - ZR) / .035, 0, 1) : 1;
-    const k = Math.sqrt(Math.max(0, 1 - (1 - cap) ** 2)), cy = z > 0 ? .6 : .44;
-    return [p[0] * k, cy + (p[1] - cy) * k, z];
+    const [x, y] = capXform(z, p[0], p[1]);
+    return [x, y, z];
   }, { ...paint, k: (p, u, v) => { const s = secs[Math.round(u * NU)][Math.round(v * NV)][2]; return [winSdf(p[0], p[1], p[2], s), seamSdf(p[0], p[1], p[2], s), canvasSdf(p[0], p[1], p[2], s), s]; } });
   // ---------------- wings (bolt-on). z -> [top y, inner x, outer x]
   for (const s of [1, -1]) {
@@ -104,11 +112,11 @@ export function buildCar() {
   }
   // ---------------- lamps, bumpers, trim
   for (const s of [1, -1]) {
-    const F = frame([s * .52, .93, 1.6], [0, 0, 1], [1, 0, 0]);
+    const F = frame([s * .5, .86, 1.6], [0, 0, 1], [1, 0, 0]);
     lathe(g, F, [[-.11, 0], [-.105, .04], [-.085, .07], [-.05, .088], [0, .096], [.012, .097], [.016, .09]], 28, { mat: CHROME, col: C(.9, .9, .92, .12), part: P_BODY });
-    lathe(g, frame([s * .52, .93, 1.616], [0, 0, 1], [1, 0, 0]), [[0, .089], [.008, .07], [.013, .04], [.015, 0]], 28, { mat: LAMP, col: C(1, .97, .9, .05), part: P_BODY });
-    tube(g, [[s * .52, .86, 1.57], [s * .52, .80, 1.6], [s * .35, .80, 1.67]], .014, 8, { mat: CHASSIS, col: C(.2, .2, .2, .4), part: P_BODY }); // lamp stalk
-    blob(g, [s * .64, .79, 1.745], [.028, .022, .02], 2.4, { mat: LAMP, col: C(1, .45, .05, .1), part: P_BODY, nu: 8, nv: 12 }); // front indicator
+    lathe(g, frame([s * .5, .86, 1.616], [0, 0, 1], [1, 0, 0]), [[0, .089], [.008, .07], [.013, .04], [.015, 0]], 28, { mat: LAMP, col: C(1, .97, .9, .05), part: P_BODY });
+    tube(g, [[s * .5, .795, 1.57], [s * .48, .77, 1.58], [s * .36, .77, 1.6]], .014, 8, { mat: CHASSIS, col: C(.2, .2, .2, .4), part: P_BODY }); // lamp stalk
+    lathe(g, frame([s * .615, .585, 1.83], [0, .1, 1], [1, 0, 0]), [[-.02, 0], [-.02, .034], [.004, .036], [.012, .028], [.016, 0]], 16, { mat: LAMP, col: C(1, .42, .04, .1), part: P_BODY }); // front indicator on the wing
     blob(g, [s * .62, .645, -1.805], [.04, .05, .022], 3, { mat: LAMP, col: C(.85, .05, .03, .1), part: P_BODY, nu: 8, nv: 12 }); // tail lamp
     blob(g, [s * .62, .58, -1.795], [.03, .016, .016], 3, { mat: LAMP, col: C(1, .45, .05, .1), part: P_BODY, nu: 6, nv: 10 });
     // bumper overriders
@@ -118,9 +126,8 @@ export function buildCar() {
     for (const z of [-.27, -.93]) blob(g, [s * .695, 1.0, z], [.012, .012, .045], 3, { mat: CHROME, col: C(.8, .8, .82, .15), part: P_BODY, nu: 6, nv: 10 });
     for (const [z, y] of [[.585, .62], [.585, .92], [-.355, .62], [-.355, .92]]) blob(g, [s * .693, y, z], [.01, .03, .015], 4, { mat: CHROME, col: C(.6, .6, .62, .3), part: P_BODY, nu: 6, nv: 8 });
   }
-  tube(g, [[-.55, .855, 1.6], [.55, .855, 1.6]], .016, 8, { mat: CHASSIS, col: C(.25, .25, .25, .4), part: P_BODY }); // headlamp bar
+  tube(g, [[-.53, .785, 1.57], [.53, .785, 1.57]], .016, 8, { mat: CHASSIS, col: C(.25, .25, .25, .4), part: P_BODY }); // headlamp bar
   // the bonnet's front comes down to the bumper: valance below the grille and a pan underneath (no view into the engine bay)
-  blob(g, [0, .585, 1.788], [.37, .205, .016], 9, { ...paint, nu: 10, nv: 28 }); // front panel: carries the grille, closes the nose
   blob(g, [0, .385, 1.6], [.41, .014, .2], 8, { mat: CHASSIS, col: C(.06, .06, .06, .7), part: P_BODY, nu: 6, nv: 20 });
   for (const z of [1.885, -1.955]) {
     blob(g, [0, .375, z], [.7, .036, .024], 6, { mat: CHROME, col: C(.85, .85, .87, .15), part: P_BODY, nu: 10, nv: 28 });

@@ -390,15 +390,16 @@ void main(){
   else if(seam<.006){N=normalize(N+vec3(0,.0,0));alb*=.82;}
   if(canv<0.){float st=abs(fract(s*4.+.5)-.5);alb=vec3(.035,.035,.04)*(.9+.2*vnoise(R.zx*vec2(300.,60.)));rough=.92;cc=0.;
    alb*=1.-smoothstep(.03,.0,st)*.5;N=normalize(N+vec3(0,0,1)*.05*sin(R.z*40.));}
-  if(R.z>1.765&&N.z>.3&&!(!ff)){ // nose: the 2CV6's grey plastic grille set into the bonnet, double chevrons on it
-   float gx=abs(R.x),gy=R.y,hw=.285-(gy-.47)*.16;
-   vec2 q=vec2(gx-hw+.045,abs(gy-.612)-.142+.045);float sd=length(max(q,0.))+min(max(q.x,q.y),0.)-.045;
+  if(R.z>1.58&&R.y>.42&&R.y<.8&&abs(R.x)<.36&&N.z>.25&&!(!ff)){ // nose: the 2CV6's grey plastic grille set into the bonnet, double chevrons on it
+   float gx=abs(R.x),gy=R.y,hw=.255-(gy-.43)*.08;
+   vec2 q=vec2(gx-hw+.04,abs(gy-.61)-.178+.04);float sd=length(max(q,0.))+min(max(q.x,q.y),0.)-.04;
    if(sd<.004){cc=0.;metal=0.;
-    if(sd>-.024){alb=vec3(.4,.41,.42);rough=.45;N=normalize(N+vec3(sign(R.x)*.4,sign(gy-.612)*.4,0)*smoothstep(-.012,0.,sd));}   // surround
-    else{float sl=fract((gy-.47)/.021),bar=smoothstep(0.,.1,sl)*smoothstep(.66,.56,sl);
-     alb=mix(vec3(.015),vec3(.33,.34,.35),bar);rough=.5;N=normalize(N+vec3(0,(.33-sl)*.9*bar,0));}
-    vec2 c=vec2(gx,gy-.66);for(int i=0;i<2;i++){float y0=float(i)*.034;float d=abs(c.y-y0-(.028-c.x*.6))-.008;
-     if(d<0.&&c.x<.058){alb=vec3(.72,.73,.74);metal=.9;rough=.25;}}}}
+    if(sd>-.02){alb=vec3(.55,.56,.57);rough=.3;metal=.5;N=normalize(N+vec3(sign(R.x)*.4,sign(gy-.61)*.4,0)*smoothstep(-.01,0.,sd));}   // surround
+    else{float sl=fract((gy-.43)/.019),bar=smoothstep(0.,.1,sl)*smoothstep(.62,.52,sl);
+     alb=mix(vec3(.015),vec3(.36,.37,.38),bar);rough=.45;N=normalize(N+vec3(0,(.3-sl)*.9*bar,0));
+     if(length(vec2(gx,gy-.47))<.018)alb=vec3(.01);}                                        // starting-handle hole
+    vec2 c=vec2(gx,gy-.64);for(int i=0;i<2;i++){float y0=float(i)*.048;float d=abs(c.y-y0-(.04-c.x*.62))-.011;
+     if(d<0.&&c.x<.08){alb=vec3(.8,.81,.82);metal=1.;rough=.15;}}}}
   if(R.z<-1.9&&abs(R.x)<.25&&R.y>.42&&R.y<.52&&ff){alb=vec3(.85,.7,.12);rough=.5;cc=0.;if(abs(R.y-.47)<.03&&abs(fract(R.x*18.)-.5)<.3&&abs(R.x)<.21)alb=vec3(.03);}
   if(!ff){alb=uPaint*.55;rough=.7;cc=0.;
    if(abs(R.x)>.55&&R.y>.38&&R.y<1.02&&R.z<.56&&R.z>-.98)alb=vec3(.16,.15,.14)*(.9+.1*vnoise(R.zy*80.));}
@@ -426,9 +427,9 @@ void main(){
  else if(mat==8){rough=.75;alb*=.85+.3*n3(R*20.);alb=mix(alb,vec3(.16,.09,.05),smoothstep(.7,.9,n3(R*7.))*.3);}
  else if(mat==9){metal=0.;rough=.05;cc=1.;
   float head=step(1.5,R.z);float tail=step(R.z,-1.7)*step(.62,R.y);
-  float l=head*uLights*(1.+3.*smoothstep(.05,.0,length(R.xy-vec2(sign(R.x)*.52,.93))))+tail*(uLights*.4+uBrake*2.5)+step(abs(R.z-.43),.05)*.4;
+  float l=head*uLights*(1.+3.*smoothstep(.05,.0,length(R.xy-vec2(sign(R.x)*.5,.86))))+tail*(uLights*.4+uBrake*2.5)+step(abs(R.z-.43),.05)*.4;
   em=vC.rgb*l*vec3(4.,3.6,3.)+vec3(0);alb=vC.rgb*.3;
-  float fr=fract(length(R.xy-vec2(sign(R.x)*.52,.93))*90.);alb*=.85+.3*fr*head;}
+  float fr=fract(length(R.xy-vec2(sign(R.x)*.5,.86))*90.);alb*=.85+.3*fr*head;}
  else if(mat==10){metal=.2;rough=.35;cc=.4;}
  else if(mat==11){bool dk=alb.r<.2;rough=dk?.75:.42;cc=dk?0.:.35;alb*=.92+.12*vnoise(R.xy*90.);
   if(vK.w!=0.&&abs(vK.w)<1.){vec3 d=R-vK.xyz;vec2 q=vK.w>0.?d.zy:d.xy;float r=abs(vK.w),l=length(q);if(l<r&&length(d)<r*1.6){alb=(q.x*q.y>0.)==(l<r*.55)?vec3(.95,.8,.05):vec3(.01);rough=.5;cc=.3;if(l>r*.92)alb=vec3(.01);}}}
@@ -1025,10 +1026,10 @@ void main(){vec2 u=vU;
   var P_WHEEL = 4;
   var P_INT = 5;
   var SEC = table([
-    [1.81, 0.77, 0.4, 0.38, 0.33, 7],
-    [1.7, 0.835, 0.4, 0.42, 0.36, 7],
-    [1.4, 0.89, 0.42, 0.45, 0.4, 7],
-    [1, 0.965, 0.45, 0.5, 0.46, 7],
+    [1.81, 0.74, 0.4, 0.37, 0.33, 3.4],
+    [1.7, 0.8, 0.4, 0.41, 0.36, 3.6],
+    [1.4, 0.885, 0.42, 0.45, 0.4, 4.4],
+    [1, 0.965, 0.45, 0.5, 0.46, 5.5],
     [0.72, 1.02, 0.42, 0.58, 0.55, 6],
     [0.62, 1.04, 0.32, 0.66, 0.6, 5.5],
     [0.55, 1.16, 0.3, 0.68, 0.61, 5],
@@ -1045,6 +1046,17 @@ void main(){vec2 u=vU;
     [-1.84, 0.72, 0.33, 0.62, 0.52, 3.3],
     [-1.92, 0.52, 0.34, 0.58, 0.48, 3]
   ]);
+  function capXform(z, x, y) {
+    if (z > ZF - 0.24) {
+      const c = Math.min(1, Math.max(0, (ZF - z) / 0.24)), k = Math.sqrt(Math.max(0, 1 - (1 - c) ** 2)), cy = SEC(z)[1] + 0.02;
+      return [x * (0.25 + 0.75 * k), cy + (y - cy) * k];
+    }
+    if (z < -1.89) {
+      const c = Math.min(1, Math.max(0, (z - ZR) / 0.035)), k = Math.sqrt(Math.max(0, 1 - (1 - c) ** 2));
+      return [x * k, 0.44 + (y - 0.44) * k];
+    }
+    return [x, y];
+  }
   var ZF = 1.815;
   var ZR = -1.925;
   var FW = table([[1.875, 0.47, 0.47, 0.62], [1.82, 0.66, 0.43, 0.69], [1.7, 0.79, 0.44, 0.735], [1.45, 0.825, 0.46, 0.74], [1.2, 0.83, 0.465, 0.74], [1, 0.79, 0.48, 0.74], [0.82, 0.67, 0.54, 0.735], [0.66, 0.5, 0.6, 0.725], [0.55, 0.37, 0.62, 0.72]]);
@@ -1112,18 +1124,17 @@ void main(){vec2 u=vU;
   function buildCar() {
     const g2 = Geo(), C2 = (r, g_, b, ro = 0.5) => [r, g_, b, ro];
     const paint = { mat: PAINT, col: C2(1, 1, 1, 0.3), part: P_BODY };
-    const NU = 150, NV = 240, secs = [];
-    const zs = [];
-    for (let i = 0; i <= NU; i++) {
-      const t = i / NU;
-      zs.push(lerp(ZF, ZR, t));
-    }
+    const NV = 240, secs = [], zs = [];
+    for (let z = ZF; z > ZF - 0.3; z -= 7e-3) zs.push(z);
+    for (let z = ZF - 0.3; z > ZR + 0.06; z -= 0.025) zs.push(z);
+    for (let z = ZR + 0.06; z > ZR; z -= 8e-3) zs.push(z);
+    zs.push(ZR);
+    const NU = zs.length - 1;
     for (const z of zs) secs.push(section(z, NV));
     grid(g2, NU, NV, (u, v) => {
       const i = Math.round(u * NU), j = Math.round(v * NV), z = zs[i], p = secs[i][j];
-      const cap = z > 1.77 ? clamp((ZF - z) / 0.045, 0, 1) : z < -1.89 ? clamp((z - ZR) / 0.035, 0, 1) : 1;
-      const k = Math.sqrt(Math.max(0, 1 - (1 - cap) ** 2)), cy = z > 0 ? 0.6 : 0.44;
-      return [p[0] * k, cy + (p[1] - cy) * k, z];
+      const [x, y] = capXform(z, p[0], p[1]);
+      return [x, y, z];
     }, { ...paint, k: (p, u, v) => {
       const s = secs[Math.round(u * NU)][Math.round(v * NV)][2];
       return [winSdf(p[0], p[1], p[2], s), seamSdf(p[0], p[1], p[2], s), canvasSdf(p[0], p[1], p[2], s), s];
@@ -1143,11 +1154,11 @@ void main(){vec2 u=vU;
       }), 6e-3, 5, { mat: BLACK, col: C2(0.03, 0.03, 0.03, 0.5), part: P_BODY });
     }
     for (const s of [1, -1]) {
-      const F = frame([s * 0.52, 0.93, 1.6], [0, 0, 1], [1, 0, 0]);
+      const F = frame([s * 0.5, 0.86, 1.6], [0, 0, 1], [1, 0, 0]);
       lathe(g2, F, [[-0.11, 0], [-0.105, 0.04], [-0.085, 0.07], [-0.05, 0.088], [0, 0.096], [0.012, 0.097], [0.016, 0.09]], 28, { mat: CHROME, col: C2(0.9, 0.9, 0.92, 0.12), part: P_BODY });
-      lathe(g2, frame([s * 0.52, 0.93, 1.616], [0, 0, 1], [1, 0, 0]), [[0, 0.089], [8e-3, 0.07], [0.013, 0.04], [0.015, 0]], 28, { mat: LAMP, col: C2(1, 0.97, 0.9, 0.05), part: P_BODY });
-      tube(g2, [[s * 0.52, 0.86, 1.57], [s * 0.52, 0.8, 1.6], [s * 0.35, 0.8, 1.67]], 0.014, 8, { mat: CHASSIS, col: C2(0.2, 0.2, 0.2, 0.4), part: P_BODY });
-      blob(g2, [s * 0.64, 0.79, 1.745], [0.028, 0.022, 0.02], 2.4, { mat: LAMP, col: C2(1, 0.45, 0.05, 0.1), part: P_BODY, nu: 8, nv: 12 });
+      lathe(g2, frame([s * 0.5, 0.86, 1.616], [0, 0, 1], [1, 0, 0]), [[0, 0.089], [8e-3, 0.07], [0.013, 0.04], [0.015, 0]], 28, { mat: LAMP, col: C2(1, 0.97, 0.9, 0.05), part: P_BODY });
+      tube(g2, [[s * 0.5, 0.795, 1.57], [s * 0.48, 0.77, 1.58], [s * 0.36, 0.77, 1.6]], 0.014, 8, { mat: CHASSIS, col: C2(0.2, 0.2, 0.2, 0.4), part: P_BODY });
+      lathe(g2, frame([s * 0.615, 0.585, 1.83], [0, 0.1, 1], [1, 0, 0]), [[-0.02, 0], [-0.02, 0.034], [4e-3, 0.036], [0.012, 0.028], [0.016, 0]], 16, { mat: LAMP, col: C2(1, 0.42, 0.04, 0.1), part: P_BODY });
       blob(g2, [s * 0.62, 0.645, -1.805], [0.04, 0.05, 0.022], 3, { mat: LAMP, col: C2(0.85, 0.05, 0.03, 0.1), part: P_BODY, nu: 8, nv: 12 });
       blob(g2, [s * 0.62, 0.58, -1.795], [0.03, 0.016, 0.016], 3, { mat: LAMP, col: C2(1, 0.45, 0.05, 0.1), part: P_BODY, nu: 6, nv: 10 });
       blob(g2, [s * 0.3, 0.4, 1.905], [0.022, 0.075, 0.022], 4, { mat: CHROME, col: C2(0.85, 0.85, 0.87, 0.15), part: P_BODY, nu: 8, nv: 12 });
@@ -1155,8 +1166,7 @@ void main(){vec2 u=vU;
       for (const z of [-0.27, -0.93]) blob(g2, [s * 0.695, 1, z], [0.012, 0.012, 0.045], 3, { mat: CHROME, col: C2(0.8, 0.8, 0.82, 0.15), part: P_BODY, nu: 6, nv: 10 });
       for (const [z, y] of [[0.585, 0.62], [0.585, 0.92], [-0.355, 0.62], [-0.355, 0.92]]) blob(g2, [s * 0.693, y, z], [0.01, 0.03, 0.015], 4, { mat: CHROME, col: C2(0.6, 0.6, 0.62, 0.3), part: P_BODY, nu: 6, nv: 8 });
     }
-    tube(g2, [[-0.55, 0.855, 1.6], [0.55, 0.855, 1.6]], 0.016, 8, { mat: CHASSIS, col: C2(0.25, 0.25, 0.25, 0.4), part: P_BODY });
-    blob(g2, [0, 0.585, 1.788], [0.37, 0.205, 0.016], 9, { ...paint, nu: 10, nv: 28 });
+    tube(g2, [[-0.53, 0.785, 1.57], [0.53, 0.785, 1.57]], 0.016, 8, { mat: CHASSIS, col: C2(0.25, 0.25, 0.25, 0.4), part: P_BODY });
     blob(g2, [0, 0.385, 1.6], [0.41, 0.014, 0.2], 8, { mat: CHASSIS, col: C2(0.06, 0.06, 0.06, 0.7), part: P_BODY, nu: 6, nv: 20 });
     for (const z of [1.885, -1.955]) {
       blob(g2, [0, 0.375, z], [0.7, 0.036, 0.024], 6, { mat: CHROME, col: C2(0.85, 0.85, 0.87, 0.15), part: P_BODY, nu: 10, nv: 28 });
@@ -1869,9 +1879,7 @@ void main(){vec2 u=vU;
   }
   var SHELL = [];
   for (let z = ZF; z >= ZR - 1e-6; z -= 0.01) {
-    const cap = z > 1.77 ? Math.max(0, (ZF - z) / 0.045) : z < -1.89 ? Math.max(0, (z - ZR) / 0.035) : 1;
-    const k = Math.sqrt(Math.max(0, 1 - (1 - Math.min(cap, 1)) ** 2)), cy = z > 0 ? 0.6 : 0.44;
-    SHELL.push({ z, pl: section(z, 80).map((p) => [p[0] * k, cy + (p[1] - cy) * k, p[2]]) });
+    SHELL.push({ z, pl: section(z, 80).map((p) => [...capXform(z, p[0], p[1]), p[2]]) });
   }
   function shellDist(x, y, z) {
     let best = 1e9, bs = 0;
@@ -2024,10 +2032,11 @@ void main(){vec2 u=vU;
         for (const o of near(nodes[a].p, 0.7, (o2) => o2.cls === C.FLOOR || o2.cls === C.RAIL).sort((p, q) => dd(p.p, nodes[a].p) - dd(q.p, nodes[a].p)).slice(0, 3)) addBeam(W2, nodes[a].id, o.id, SEATB);
       }
     }
+    const RIMB = { k: 1e6, fyc: 700 * (+globalThis.process?.env?.RIMY || 1), fyt: 1400 * (+globalThis.process?.env?.RIMY || 1), brk: 1.5, damp: 0.8 };
     rim.forEach((r, k) => {
-      addBeam(W2, nodes[r].id, nodes[sw].id, MATS.STEER);
-      addBeam(W2, nodes[r].id, nodes[rim[(k + 1) % 4]].id, MATS.STEER);
-      addBeam(W2, nodes[r].id, nodes[col].id, MATS.STEER);
+      addBeam(W2, nodes[r].id, nodes[sw].id, RIMB);
+      addBeam(W2, nodes[r].id, nodes[rim[(k + 1) % 4]].id, RIMB);
+      addBeam(W2, nodes[r].id, nodes[col].id, RIMB);
     });
     const adj = Array.from({ length: W2.n }, () => []);
     for (const j of beams) {
@@ -2304,7 +2313,10 @@ void main(){vec2 u=vU;
         Fx *= lim / fm;
         Fy *= lim / fm;
       }
-      force(add(scl(wf, Fx), scl(ws, Fy)), cp);
+      force(scl(ws, Fy), cp);
+      const arm = i < 2 ? -0.1 : 0.1;
+      force(scl(wf, Fx), add(cp, scl(up, 0.31)));
+      force(scl(up, arm * Fx), add(cp, scl(up, 0.31)));
       C2.wv[i] = vl / WR;
     }
     const v = len(C2.vel);
@@ -2603,7 +2615,7 @@ void main(){vec2 u=vU;
       return N.filter((o) => o.g && o.cls !== CLS.GLASS && o.cls !== CLS.CANVAS && dist(o.p, p) < 0.25).map((o) => o.id).sort((a, b) => (a !== id) - (b !== id));
     };
     D2.lap = addPulley(W2, cl(sill), D2.ids[IDX.pelvis], cl(buckle), 0.01, +(E.LAPK || 2e5));
-    D2.diag = addPulley(W2, pillar, [D2.ids[IDX.shL], D2.ids[IDX.chest]], cl(buckle), +(E.SLACK || 5e-3), +(E.BELTK || 7e4));
+    D2.diag = addPulley(W2, pillar, [D2.ids[IDX.shL], D2.ids[IDX.chest]], cl(buckle), +(E.SLACK || 5e-3), +(E.BELTK || 15e4));
     D2.anchors = [sill, buckle, upper];
     W2.r[car.L.sw] = +(E.SWR || 0.07);
     W2.flag[car.L.sw] |= 8;

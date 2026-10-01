@@ -54,7 +54,7 @@ export function createDummy(W, body, car) {
   const pillar = [upper, ...N.filter(o => o.g && o.p[0] > .6 && Math.abs(o.p[2] + .35) < .1 && o.p[1] > .3 && o.p[1] < 1.42 && o.cls !== CLS.GLASS && o.id !== upper).map(o => o.id)];
   const cl = id => { const p = [W.x[id * 3], W.x[id * 3 + 1], W.x[id * 3 + 2]]; return N.filter(o => o.g && o.cls !== CLS.GLASS && o.cls !== CLS.CANVAS && dist(o.p, p) < .25).map(o => o.id).sort((a, b) => (a !== id) - (b !== id)); };
   D.lap = addPulley(W, cl(sill), D.ids[IDX.pelvis], cl(buckle), .01, +(E.LAPK || 2e5));
-  D.diag = addPulley(W, pillar, [D.ids[IDX.shL], D.ids[IDX.chest]], cl(buckle), +(E.SLACK || .005), +(E.BELTK || 7e4));
+  D.diag = addPulley(W, pillar, [D.ids[IDX.shL], D.ids[IDX.chest]], cl(buckle), +(E.SLACK || .005), +(E.BELTK || 1.5e5));
   D.anchors = [sill, buckle, upper];
   W.r[car.L.sw] = +(E.SWR || .07); W.flag[car.L.sw] |= 8;
   D.belt = on => { D.lap.on = D.diag.on = on ? 1 : 0; };

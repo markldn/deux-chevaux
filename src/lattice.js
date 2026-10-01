@@ -1,7 +1,7 @@
 // The 2CV's structure as a node/beam lattice on a 15 cm grid, classified from the same section functions that
 // build the body mesh: thin shell, platform + side members, engine/gearbox block, bulkhead, dash rail, bumpers,
 // glass (brittle), canvas roof (tension only), wheel hubs on hinged arms. Plus the vertex -> node skin binding.
-import { section, ZF, ZR, FW, RW, archF, winSdf, canvasSdf, WHEELS, PIVOT, SWHEEL, SEAT, FZ, P_ENGINE, P_INT, P_WHEEL, P_SUSP } from './car.js';
+import { section, capXform, ZF, ZR, FW, RW, archF, winSdf, canvasSdf, WHEELS, PIVOT, SWHEEL, SEAT, FZ, P_ENGINE, P_INT, P_WHEEL, P_SUSP } from './car.js';
 import { addNode, addBeam } from './soft.js';
 import { add, scl, norm, cross } from './math.js';
 
@@ -44,9 +44,7 @@ function polyDist(pl, x, y) {
 // fine z samples of the shell (including the collapsing caps) for 3D distance queries
 const SHELL = [];
 for (let z = ZF; z >= ZR - 1e-6; z -= .01) {
-  const cap = z > 1.77 ? Math.max(0, (ZF - z) / .045) : z < -1.89 ? Math.max(0, (z - ZR) / .035) : 1;
-  const k = Math.sqrt(Math.max(0, 1 - (1 - Math.min(cap, 1)) ** 2)), cy = z > 0 ? .6 : .44;
-  SHELL.push({ z, pl: section(z, 80).map(p => [p[0] * k, cy + (p[1] - cy) * k, p[2]]) });
+  SHELL.push({ z, pl: section(z, 80).map(p => [...capXform(z, p[0], p[1]), p[2]]) });
 }
 function shellDist(x, y, z) {
   let best = 1e9, bs = 0;
@@ -162,7 +160,9 @@ export function buildLattice(W, body, totalMass = 600) {
   const SEATB = { k: 3e6, fyc: 2500, fyt: 4000, brk: .8, damp: .8 };
   for (const g of seats) { for (const a of g) { for (const b of g) if (a < b) addBeam(W, nodes[a].id, nodes[b].id, SEATB);
     for (const o of near(nodes[a].p, .7, o => o.cls === C.FLOOR || o.cls === C.RAIL).sort((p, q) => dd(p.p, nodes[a].p) - dd(q.p, nodes[a].p)).slice(0, 3)) addBeam(W, nodes[a].id, o.id, SEATB); } }
-  rim.forEach((r, k) => { addBeam(W, nodes[r].id, nodes[sw].id, MATS.STEER); addBeam(W, nodes[r].id, nodes[rim[(k + 1) % 4]].id, MATS.STEER); addBeam(W, nodes[r].id, nodes[col].id, MATS.STEER); });
+  // the rim bends when the chest or arms load it (a single-spoke 2CV wheel folds easily)
+  const RIMB = { k: 1e6, fyc: 700 * (+(globalThis.process?.env?.RIMY) || 1), fyt: 1400 * (+(globalThis.process?.env?.RIMY) || 1), brk: 1.5, damp: .8 };
+  rim.forEach((r, k) => { addBeam(W, nodes[r].id, nodes[sw].id, RIMB); addBeam(W, nodes[r].id, nodes[rim[(k + 1) % 4]].id, RIMB); addBeam(W, nodes[r].id, nodes[col].id, RIMB); });
   // adjacency for node frames
   const adj = Array.from({ length: W.n }, () => []);
   for (const j of beams) { adj[W.ba[j]].push(W.bb[j]); adj[W.bb[j]].push(W.ba[j]); }

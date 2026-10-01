@@ -186,15 +186,16 @@ void main(){
   else if(seam<.006){N=normalize(N+vec3(0,.0,0));alb*=.82;}
   if(canv<0.){float st=abs(fract(s*4.+.5)-.5);alb=vec3(.035,.035,.04)*(.9+.2*vnoise(R.zx*vec2(300.,60.)));rough=.92;cc=0.;
    alb*=1.-smoothstep(.03,.0,st)*.5;N=normalize(N+vec3(0,0,1)*.05*sin(R.z*40.));}
-  if(R.z>1.765&&N.z>.3&&!(!ff)){ // nose: the 2CV6's grey plastic grille set into the bonnet, double chevrons on it
-   float gx=abs(R.x),gy=R.y,hw=.285-(gy-.47)*.16;
-   vec2 q=vec2(gx-hw+.045,abs(gy-.612)-.142+.045);float sd=length(max(q,0.))+min(max(q.x,q.y),0.)-.045;
+  if(R.z>1.58&&R.y>.42&&R.y<.8&&abs(R.x)<.36&&N.z>.25&&!(!ff)){ // nose: the 2CV6's grey plastic grille set into the bonnet, double chevrons on it
+   float gx=abs(R.x),gy=R.y,hw=.255-(gy-.43)*.08;
+   vec2 q=vec2(gx-hw+.04,abs(gy-.61)-.178+.04);float sd=length(max(q,0.))+min(max(q.x,q.y),0.)-.04;
    if(sd<.004){cc=0.;metal=0.;
-    if(sd>-.024){alb=vec3(.4,.41,.42);rough=.45;N=normalize(N+vec3(sign(R.x)*.4,sign(gy-.612)*.4,0)*smoothstep(-.012,0.,sd));}   // surround
-    else{float sl=fract((gy-.47)/.021),bar=smoothstep(0.,.1,sl)*smoothstep(.66,.56,sl);
-     alb=mix(vec3(.015),vec3(.33,.34,.35),bar);rough=.5;N=normalize(N+vec3(0,(.33-sl)*.9*bar,0));}
-    vec2 c=vec2(gx,gy-.66);for(int i=0;i<2;i++){float y0=float(i)*.034;float d=abs(c.y-y0-(.028-c.x*.6))-.008;
-     if(d<0.&&c.x<.058){alb=vec3(.72,.73,.74);metal=.9;rough=.25;}}}}
+    if(sd>-.02){alb=vec3(.55,.56,.57);rough=.3;metal=.5;N=normalize(N+vec3(sign(R.x)*.4,sign(gy-.61)*.4,0)*smoothstep(-.01,0.,sd));}   // surround
+    else{float sl=fract((gy-.43)/.019),bar=smoothstep(0.,.1,sl)*smoothstep(.62,.52,sl);
+     alb=mix(vec3(.015),vec3(.36,.37,.38),bar);rough=.45;N=normalize(N+vec3(0,(.3-sl)*.9*bar,0));
+     if(length(vec2(gx,gy-.47))<.018)alb=vec3(.01);}                                        // starting-handle hole
+    vec2 c=vec2(gx,gy-.64);for(int i=0;i<2;i++){float y0=float(i)*.048;float d=abs(c.y-y0-(.04-c.x*.62))-.011;
+     if(d<0.&&c.x<.08){alb=vec3(.8,.81,.82);metal=1.;rough=.15;}}}}
   if(R.z<-1.9&&abs(R.x)<.25&&R.y>.42&&R.y<.52&&ff){alb=vec3(.85,.7,.12);rough=.5;cc=0.;if(abs(R.y-.47)<.03&&abs(fract(R.x*18.)-.5)<.3&&abs(R.x)<.21)alb=vec3(.03);}
   if(!ff){alb=uPaint*.55;rough=.7;cc=0.;
    if(abs(R.x)>.55&&R.y>.38&&R.y<1.02&&R.z<.56&&R.z>-.98)alb=vec3(.16,.15,.14)*(.9+.1*vnoise(R.zy*80.));}
@@ -222,9 +223,9 @@ void main(){
  else if(mat==8){rough=.75;alb*=.85+.3*n3(R*20.);alb=mix(alb,vec3(.16,.09,.05),smoothstep(.7,.9,n3(R*7.))*.3);}
  else if(mat==9){metal=0.;rough=.05;cc=1.;
   float head=step(1.5,R.z);float tail=step(R.z,-1.7)*step(.62,R.y);
-  float l=head*uLights*(1.+3.*smoothstep(.05,.0,length(R.xy-vec2(sign(R.x)*.52,.93))))+tail*(uLights*.4+uBrake*2.5)+step(abs(R.z-.43),.05)*.4;
+  float l=head*uLights*(1.+3.*smoothstep(.05,.0,length(R.xy-vec2(sign(R.x)*.5,.86))))+tail*(uLights*.4+uBrake*2.5)+step(abs(R.z-.43),.05)*.4;
   em=vC.rgb*l*vec3(4.,3.6,3.)+vec3(0);alb=vC.rgb*.3;
-  float fr=fract(length(R.xy-vec2(sign(R.x)*.52,.93))*90.);alb*=.85+.3*fr*head;}
+  float fr=fract(length(R.xy-vec2(sign(R.x)*.5,.86))*90.);alb*=.85+.3*fr*head;}
  else if(mat==10){metal=.2;rough=.35;cc=.4;}
  else if(mat==11){bool dk=alb.r<.2;rough=dk?.75:.42;cc=dk?0.:.35;alb*=.92+.12*vnoise(R.xy*90.);
   if(vK.w!=0.&&abs(vK.w)<1.){vec3 d=R-vK.xyz;vec2 q=vK.w>0.?d.zy:d.xy;float r=abs(vK.w),l=length(q);if(l<r&&length(d)<r*1.6){alb=(q.x*q.y>0.)==(l<r*.55)?vec3(.95,.8,.05):vec3(.01);rough=.5;cc=.3;if(l>r*.92)alb=vec3(.01);}}}

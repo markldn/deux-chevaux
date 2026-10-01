@@ -38,7 +38,8 @@ with `DecompressionStream`. No base64, no external requests.
 **The car.** A 2CV6 built from parametric surfaces to the real dimensions (3830 × 1480 × 1600 mm, 2400 mm wheelbase,
 1260 mm track, 125 R 15 tyres): the ribbed bonnet, bolt-on wings and rear spats, round headlamps on their bar,
 four front-hinged doors and the six-light glasshouse, flap-up front windows, roll-back canvas roof, and the
-2CV6's grey plastic grille with its double chevrons, set into the bonnet front (it's air-cooled: no radiator). Underneath: the platform chassis, leading and trailing arms, the interconnected spring canisters, the
+2CV6's grey plastic grille with its double chevrons, set into the rounded nose (it's air-cooled: no radiator). The nose profile was checked against photographs and a
+3D model of a 1964 2CV. Underneath: the platform chassis, leading and trailing arms, the interconnected spring canisters, the
 602 cm³ air-cooled flat twin with finned barrels and its cooling fan, gearbox with inboard disc brakes, driveshafts,
 exhaust and silencer, fuel tank, the spare wheel under the bonnet. Inside: tubular seats, the umbrella-handle gear
 lever coming out of the dashboard, single-spoke wheel, pedals. Seven period paints, including the Charleston.
@@ -46,7 +47,8 @@ lever coming out of the dashboard, single-spoke wheel, pedals. Seven period pain
 **The physics.** Two models of the same car:
 - *Driving* — a rigid body on the 2CV's interconnected suspension (front and rear spring on each side share one
   canister: stiff in heave, very soft in pitch), slip-angle tyres, the 39 N·m flat twin with a 4-speed box,
-  Cd 0.51 drag: 0–100 km/h in ~30 s and ≈ 110 km/h flat out (the real 2CV6: ~32 s, 115 km/h).
+  front-wheel drive with leading-arm anti-lift (the nose barely rises under power, and it pushes wide when you
+  accelerate in a bend), Cd 0.51 drag: 0–100 km/h in ~31 s and ≈ 110 km/h flat out (the real 2CV6: ~32 s, 115 km/h).
 - *Crashing* — the moment it touches something, the car becomes a 948-node / 7,900-beam soft-body lattice
   (BeamNG-style) built from the same section functions as the mesh: shell, platform and side members, engine
   block, bulkhead, dash rail, glass (brittle), canvas (tension only), wheel hubs on hinged arms. Beams are
@@ -65,15 +67,15 @@ strength was set against that test, and the lab re-runs it live:
 
 | 1976, 40 km/h | measured | simulated |
 |---|---|---|
-| car peak deceleration | 33 g | 32 g |
-| static crush | 375 mm | 465 mm |
-| HIC15 | 340 | 331 |
-| head (3 ms) | 85 g | 64 g |
-| chest (3 ms) | 23 g | 30 g |
-| shoulder-belt load | 676 kgf | 685 kgf |
+| car peak deceleration | 33 g | 26 g |
+| static crush | 375 mm | 408 mm |
+| HIC15 | 340 | 291 |
+| head (3 ms) | 85 g | 61 g |
+| chest (3 ms) | 23 g | 31 g |
+| shoulder-belt load | 676 kgf | 757 kgf |
 
-Like the real car, the front folds and the cabin barely deforms. Crush runs ~25 % long and the head reads low;
-the gaps are shown in the app rather than tuned away.
+Like the real car, the front folds and the cabin barely deforms. The peak g and head readings come out low and
+the chest high; the gaps are shown in the app rather than tuned away.
 
 
 **The crash lab.** Seven tests at any speed from 10 to 120 km/h: the 1976 replica, full-width wall (FMVSS 208),
