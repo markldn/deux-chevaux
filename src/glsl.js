@@ -146,11 +146,14 @@ vec3 qr(vec4 q,vec3 v){vec3 t=2.*cross(q.xyz,v);return v+q.w*t+cross(q.xyz,t);}
 void main(){int b=int(aM.y+.5);vec3 p=aP,n=aN;float dm=0.;
  if(uDum<.5&&b>=5&&b<=7){mat4 A=uA[b-5];p=(A*vec4(p,1)).xyz;n=mat3(A)*n;}
  // node skinning: each vertex follows 4 lattice nodes, carried by their positions and local rotations
- if(aW.x>0.){vec3 sp=vec3(0),sn=vec3(0);
-  for(int k=0;k<4;k++){float w=aW[k];if(w<=0.)continue;int id=int(aJ[k]+.5);ivec2 c=ivec2(id%512,id/512);
-   vec4 P=texelFetch(uNP,c,0);vec4 Q=texelFetch(uNQ,c,0);vec3 R=texelFetch(uNR,c,0).xyz;
-   sp+=w*(P.xyz+qr(Q,p-R));sn+=w*qr(Q,n);dm+=w*P.w;}
-  p=sp;n=sn;}
+ if(aW.x>0.){vec3 q[4],nn[4];float dd[4];
+  for(int k=0;k<4;k++){q[k]=vec3(0);nn[k]=n;dd[k]=0.;float w=aW[k];if(w<=0.)continue;int id=int(aJ[k]+.5);ivec2 c=ivec2(id%512,id/512);
+   vec4 P=texelFetch(uNP,c,0);vec4 Q=texelFetch(uNQ,c,0);vec3 R=texelFetch(uNR,c,0).xyz;q[k]=P.xyz+qr(Q,p-R);nn[k]=qr(Q,n);dd[k]=P.w;}
+  // a node that tore free must not drag the surface with it: blend only influences that agree with the consensus
+  int best=0;float bs=-1.;for(int k=0;k<4;k++){if(aW[k]<=0.)continue;float s=0.;for(int j=0;j<4;j++)if(aW[j]>0.&&distance(q[k],q[j])<.4)s+=aW[j];if(s>bs){bs=s;best=k;}}
+  vec3 sp=vec3(0),sn=vec3(0);float ws=0.;
+  for(int k=0;k<4;k++){if(aW[k]<=0.||distance(q[k],q[best])>.4)continue;sp+=aW[k]*q[k];sn+=aW[k]*nn[k];dm+=aW[k]*dd[k];ws+=aW[k];}
+  p=sp/ws;n=sn;dm/=ws;}
  float part=aM.w;
  if(uExplode>0.){float e=uExplode;
   if(part<.5)p.y+=e*1.25;else if(part<1.5)p.y-=e*.05;else if(part<2.5){p.y+=e*.45;p.z+=e*.55;}else if(part<3.5)p.y-=e*.18;else if(part<4.5)p.x+=sign(p.x)*e*.45;else p.y+=e*.62;}

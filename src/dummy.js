@@ -144,7 +144,8 @@ export function dummyBones(D, carRot, X = D.W.x) {
   BELT.forEach(([a, b], i) => {
     const seg = (p, q) => { const u = sub(q, p), l = len(u) || 1e-6, un = scl(u, 1 / l); let v = norm(cross(un, [0, 1, 0])); if (!isFinite(v[0]) || len(v) < .5) v = [1, 0, 0]; return [un, v, cross(un, v), l]; };
     const [u0, v0, w0, l0] = seg(rest[a], rest[b]), [u1, v1, w1, l1] = seg(cur[a], cur[b]);
-    B.set(mul(m4([scl(u1, l1 / l0), v1, w1], cur[a]), inv([u0, v0, w0], rest[a])), (17 + i) * 16);
+    const k = l1 > l0 * 1.6 + .15 ? 0 : 1; // the anchor tore out: the strap is gone
+    B.set(mul(m4([scl(u1, l1 / l0 * k), scl(v1, k), scl(w1, k)], cur[a]), inv([u0, v0, w0], rest[a])), (17 + i) * 16);
   });
   return B;
 }
