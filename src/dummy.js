@@ -2,7 +2,7 @@
 // held by a 3-point static belt (two pulley constraints: lap across the pelvis, diagonal across the chest) and
 // gripping the wheel until the load tears his hands off. Measures what the 1976 test measured: head g + HIC15,
 // chest g (3 ms), shoulder-belt load.
-import { addNode, addBeam, addPulley } from './soft.js';
+import { addNode, addBeam, addPulley, extractRotation } from './soft.js';
 import { Geo, blob, tube, lathe, frame } from './geo.js';
 import { add, sub, scl, norm, cross, dot, len, qrot, qconj, qmul, qm4, mul } from './math.js';
 import { CLS } from './lattice.js';
@@ -34,24 +34,36 @@ const LINKS = [['pelvis', 'abdomen', SPINE], ['abdomen', 'chest', SPINE], ['pelv
   ['shL', 'elL', RIGID], ['shR', 'elR', RIGID], ['elL', 'haL', RIGID], ['elR', 'haR', RIGID],
   ...MID.flatMap(([n, a, b]) => [[n, a, RIGID], [n, b, RIGID]])];
 
-export function createDummy(W, body, car) {
-  const D = { W, body, car, ids: [], local: PTS.map(p => p[1].slice()), attached: true, rec: [], grip: [], metrics: null };
+export function createDummy(W, body, car, opt = {}) {
+  const side = opt.side || 1, rear = !!opt.rear, seat = [side * (rear ? .28 : X), .5, rear ? -.85 : -.1];
+  const D = { W, body, car, ids: [], scale: 1, attached: true, rec: [], grip: [], beams: [], metrics: null, name: opt.name || 'Driver', enabled: !opt.passenger };
+  const source = PTS.map(p => p[1].slice());
+  if (opt.passenger) {
+    for (const s of ['L', 'R']) {
+      source[IDX['el' + s]] = [X + (s === 'L' ? .21 : -.21), .8, -.04];
+      source[IDX['ha' + s]] = [X + (s === 'L' ? .12 : -.12), .65, .13];
+    }
+    for (const [n, a, b] of MID) source[IDX[n]] = scl(add(source[IDX[a]], source[IDX[b]]), .5);
+  }
+  const transform = p => add(seat, scl(sub(p, PTS[IDX.pelvis][1]), D.scale));
+  D.rest = source.map(transform); D.local = D.rest.map(p => p.slice());
+  const beam = (a, b, m, tag = 3) => { const j = addBeam(W, a, b, m, tag); D.beams.push(j); return j; };
   const total = PTS.reduce((s, p) => s + p[2], 0);
-  for (const [n, p, m, r] of PTS) { const i = addNode(W, p, m * 78 / total, r, body, .5); W.flag[i] |= 4; D.ids.push(i); }
-  for (const [a, b, m] of LINKS) addBeam(W, D.ids[IDX[a]], D.ids[IDX[b]], m, 3);
+  for (let k = 0; k < PTS.length; k++) { const [, , m, r] = PTS[k], i = addNode(W, D.rest[k], m * 78 / total, r, body, .5); W.flag[i] |= 4; D.ids.push(i); }
+  for (const [a, b, m] of LINKS) beam(D.ids[IDX[a]], D.ids[IDX[b]], m);
   const L = car.L, N = L.nodes, nid = (p, f) => N.filter(f).sort((a, b) => dist(a.p, p) - dist(b.p, p))[0].id;
   const floor = o => o.cls === CLS.FLOOR || o.cls === CLS.RAIL;
   // seat: cushion springs to the platform under the pelvis and thighs
-  for (const p of [[X + .2, .25, -.05], [X - .2, .25, -.05], [X + .2, .25, -.35], [X - .2, .25, -.35]]) addBeam(W, D.ids[IDX.pelvis], nid(p, floor), SEAT, 3);
-  for (const p of [[X + .1, .25, .25], [X - .1, .25, .25]]) addBeam(W, D.ids[IDX[p[0] > X ? 'knL' : 'knR']], nid(p, floor), { ...SEAT, fyt: 300, fyc: 3000 }, 3);
+  for (const p of [[X + .2, .25, -.05], [X - .2, .25, -.05], [X + .2, .25, -.35], [X - .2, .25, -.35]]) beam(D.ids[IDX.pelvis], nid(transform(p), floor), SEAT);
+  for (const p of [[X + .1, .25, .25], [X - .1, .25, .25]]) beam(D.ids[IDX[p[0] > X ? 'knL' : 'knR']], nid(transform(p), floor), { ...SEAT, fyt: 300, fyc: 3000 });
   // hands on the rim
-  for (const h of ['haL', 'haR']) D.grip.push(addBeam(W, D.ids[IDX[h]], car.L.sw, GRIP, 3));
+  if (!opt.passenger) for (const h of ['haL', 'haR']) D.grip.push(beam(D.ids[IDX[h]], car.L.sw, GRIP));
   // 3-point static belt: anchors on the sill, the tunnel side of the floor and high on the B-pillar
-  const sill = nid([.62, .32, -.45], o => o.cls === CLS.RAIL || o.cls === CLS.FLOOR || o.cls === CLS.SHEET);
+  const sill = nid([side * .62, .32, rear ? -1.12 : -.45], o => o.cls === CLS.RAIL || o.cls === CLS.FLOOR || o.cls === CLS.SHEET);
   const E = (typeof process !== 'undefined' && process.env) || {};
-  const buckle = nid([.1, .25, +(E.BUZ || -.3)], floor);
-  const upper = nid([.68, 1.36, +(E.UPZ || -.4)], o => o.cls === CLS.SHEET && o.p[0] > .6);
-  const pillar = [upper, ...N.filter(o => o.g && o.p[0] > .6 && Math.abs(o.p[2] + .35) < .1 && o.p[1] > .3 && o.p[1] < 1.42 && o.cls !== CLS.GLASS && o.id !== upper).map(o => o.id)];
+  const buckle = nid([side * .1, .25, rear ? -1.04 : +(E.BUZ || -.3)], floor);
+  const upper = nid([side * .68, 1.36, rear ? -1.06 : +(E.UPZ || -.4)], o => o.cls === CLS.SHEET && o.p[0] * side > .6);
+  const pillar = [upper, ...N.filter(o => o.g && o.p[0] * side > .6 && Math.abs(o.p[2] - (rear ? -1.05 : -.35)) < .1 && o.p[1] > .3 && o.p[1] < 1.42 && o.cls !== CLS.GLASS && o.id !== upper).map(o => o.id)];
   const cl = id => { const p = [W.x[id * 3], W.x[id * 3 + 1], W.x[id * 3 + 2]]; return N.filter(o => o.g && o.cls !== CLS.GLASS && o.cls !== CLS.CANVAS && dist(o.p, p) < .25).map(o => o.id).sort((a, b) => (a !== id) - (b !== id)); };
   D.lap = addPulley(W, cl(sill), D.ids[IDX.pelvis], cl(buckle), .01, +(E.LAPK || 2e5));
   D.diag = addPulley(W, pillar, [D.ids[IDX.shL], D.ids[IDX.chest]], cl(buckle), +(E.SLACK || .005), +(E.BELTK || 1.5e5));
@@ -60,19 +72,37 @@ export function createDummy(W, body, car) {
   D.belt = on => { D.lap.on = D.diag.on = on ? 1 : 0; };
   // ride along rigidly while the car is rigid
   D.follow = () => {
+    let world = car.world, velocity = car.vel;
+    if (car.mode === 'soft' && D.attached) {
+      const ids = car.L.seatMounts[rear ? 2 : side > 0 ? 0 : 1], center = (arr, offset) => ids.reduce((p, i) => add(p, scl(Array.from(arr.slice((i + offset) * 3, (i + offset) * 3 + 3)), 1 / ids.length)), [0, 0, 0]);
+      const rest = center(car.restL, 0), cur = center(W.x, car.base), cov = new Float64Array(9);
+      for (const i of ids) {
+        const a = sub(Array.from(W.x.slice((i + car.base) * 3, (i + car.base) * 3 + 3)), cur), b = sub(Array.from(car.restL.slice(i * 3, i * 3 + 3)), rest);
+        for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) cov[j * 3 + k] += a[k] * b[j];
+      }
+      const q = new Float64Array(car.rot); extractRotation(cov, q, 0, 6);
+      world = p => add(cur, qrot(q, sub(p, rest))); velocity = center(W.v, car.base);
+    }
     for (let i = 0; i < D.ids.length; i++) {
-      const p = car.world(D.local[i]), k = D.ids[i] * 3;
+      const p = world(D.local[i]), k = D.ids[i] * 3;
       W.x[k] = W.p[k] = p[0]; W.x[k + 1] = W.p[k + 1] = p[1]; W.x[k + 2] = W.p[k + 2] = p[2];
-      const v = add(car.vel, cross(car.ang, sub(p, car.world(car.com)))); W.v[k] = v[0]; W.v[k + 1] = v[1]; W.v[k + 2] = v[2];
+      const v = add(velocity, cross(car.ang, sub(p, world(car.com)))); W.v[k] = v[0]; W.v[k + 1] = v[1]; W.v[k + 2] = v[2];
     }
   };
-  D.release = () => { D.attached = false; W.awake[body] = 1; D.rec = []; D.prevV = null; D.metrics = null; };
+  D.release = () => { D.attached = false; W.awake[body] = 1; D.ids.forEach((id, k) => { W.r[id] = PTS[k][3] * D.scale; }); D.rec = []; D.prevV = null; D.metrics = null; };
   D.capture = () => { // store the current pose relative to the car (after a crash, he stays slumped)
     const iq = qconj(car.rot);
     D.local = D.ids.map(i => qrot(iq, sub([W.x[i * 3], W.x[i * 3 + 1], W.x[i * 3 + 2]], car.pos)));
-    D.attached = true; W.awake[body] = 0;
+    D.attached = true; W.awake[body] = 0; for (const id of D.ids) W.r[id] = 0;
   };
-  D.reseat = () => { D.local = PTS.map(p => p[1].slice()); D.attached = true; W.awake[body] = 0; for (const j of D.grip) { W.alive[j] = 1; W.L0[j] = W.Lr[j]; } D.lap.fmax = D.diag.fmax = 0; D.metrics = null; D.rec = []; };
+  D.reseat = (scale = D.scale) => {
+    D.scale = scale; D.rest = source.map(transform); D.local = D.rest.map(p => p.slice()); D.attached = true; W.awake[body] = 0;
+    D.ids.forEach((id, k) => { W.rest.set(D.rest[k], id * 3); W.w[id] = total / (PTS[k][2] * 78 * scale ** 3); W.r[id] = 0; W.rs[id] = PTS[k][3] * scale * .45; });
+    const rest = id => D.ids.includes(id) ? D.rest[D.ids.indexOf(id)] : N.find(n => n.id === id).p;
+    for (const j of D.beams) { W.alive[j] = 1; W.pl[j] = 0; W.L0[j] = W.Lr[j] = dist(rest(W.ba[j]), rest(W.bb[j])); }
+    for (const belt of [D.lap, D.diag]) { belt.L = belt === D.lap ? .01 : .005; for (let i = 1; i < belt.path.length; i++) belt.L += dist(rest(belt.path[i - 1]), rest(belt.path[i])); belt.f = belt.fmax = 0; }
+    D.metrics = null; D.rec = []; D.prevV = null; D.fh = D.fc = undefined;
+  };
   // per-substep sampling of head and chest acceleration (called by the stepper)
   D.sample = h => {
     const v = k => [W.v[D.ids[IDX[k]] * 3], W.v[D.ids[IDX[k]] * 3 + 1], W.v[D.ids[IDX[k]] * 3 + 2]];
@@ -103,7 +133,7 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 // ---- dummy mesh: segments in the seated rest pose, each on its own bone
 // bones: 0 head, 1 neck, 2 chest, 3 abdomen, 4 pelvis, 5/6 thigh, 7/8 shin, 9/10 foot, 11/12 upper arm, 13/14 forearm, 15/16 hand
-export const SEGS = [['head', 'neck', 'head'], ['neck', 'chest', 'neck'], ['chest', 'abdomen', 'chest'], ['abdomen', 'pelvis', 'abdomen'], ['pelvis', 'abdomen', 'pelvis'],
+export const SEGS = [['head', 'neck', 'head'], ['neck', 'head', 'neck'], ['chest', 'abdomen', 'chest'], ['abdomen', 'pelvis', 'abdomen'], ['pelvis', 'abdomen', 'pelvis'],
   ['pelvis', 'knL', 'knL'], ['pelvis', 'knR', 'knR'], ['knL', 'anL', 'anL'], ['knR', 'anR', 'anR'], ['anL', 'knL', 'anL'], ['anR', 'knR', 'anR'],
   ['shL', 'elL', 'elL'], ['shR', 'elR', 'elR'], ['elL', 'haL', 'haL'], ['elR', 'haR', 'haR'], ['haL', 'elL', 'haL'], ['haR', 'elR', 'haR']];
 export function buildDummyMesh() {
@@ -113,16 +143,18 @@ export function buildDummyMesh() {
   const tgt = (c, r, side) => () => [c[0], c[1], c[2], side ? r : -r]; // quadrant target: centre, radius (sign picks the facing)
   const H = P('head'), hb = 0;
   // head: one-piece skull under a vinyl skin, moulded face, ears, quadrant targets on both sides
-  blob(g, add(H, [0, .01, -.012]), [.076, .1, .094], 2.3, o(hb, VY, 11, p => [X + Math.sign(p[0] - X) * .077, H[1] + .012, H[2] - .012, .032]));
+  blob(g, add(H, [0, .01, -.012]), [.076, .1, .094], 2.3, o(hb, VY, 11, p => [X + Math.sign(p[0] - X) * .077, H[1] + .012, H[2] - .012, .032]), p => {
+    const jaw = Math.max(0, Math.min(1, (-p[1] - .025) / .075));
+    return [p[0] * (1 - jaw * .16), p[1], p[2] + jaw * .014];
+  });
   blob(g, add(H, [0, .036, .074]), [.056, .013, .02], 2.6, o(hb));                 // brow
   blob(g, add(H, [0, -.002, .088]), [.011, .024, .017], 2.4, o(hb));               // nose
-  blob(g, add(H, [0, -.072, .058]), [.036, .022, .026], 2.6, o(hb));               // chin
   for (const s of [1, -1]) {
     blob(g, add(H, [s * .03, .013, .082]), [.014, .008, .006], 2, o(hb, [.55, .4, .05, .5]));   // eye hollows
     blob(g, add(H, [s * .077, 0, -.01]), [.012, .03, .02], 2.6, o(hb));                         // ears
   }
   // neck: rubber discs between aluminium plates, round a central cable
-  const N0 = P('neck'), N1 = add(N0, [0, .095, .015]), nprof = [];
+  const N0 = P('neck'), N1 = P('head'), nprof = [];
   for (let i = 0; i <= 8; i++) { const t = i / 8, r = i % 2 ? .034 : .043; nprof.push([t * .1 - .003, r], [t * .1 + .003, r]); }
   lathe(g, frame(N0, sub(N1, N0), [1, 0, 0]), [[-.003, 0], ...nprof, [.103, 0]], 16, o(1, AL, 7));
   for (let i = 0; i < 4; i++) lathe(g, frame(add(N0, scl(sub(N1, N0), .2 + i * .22)), sub(N1, N0), [1, 0, 0]), [[-.012, 0], [-.012, .038], [.012, .038], [.012, 0]], 16, o(1, RB, 5));
@@ -170,12 +202,16 @@ export function dummyBones(D, carRot, X = D.W.x) {
     const sideNow = norm(sub(P('shL'), P('shR'))), sideRest = norm(sub(R0('shL'), R0('shR')));
     const sn = i >= 5 && i <= 10 ? norm(sub(P('knL'), P('knR'))) : sideNow, sr = i >= 5 && i <= 10 ? norm(sub(R0('knL'), R0('knR'))) : sideRest;
     const fN = fr(P(a), P(b), sn), fR = fr(R0(a), R0(b), sr);
+    // The neck must bridge its two joints as the head pitches and the rubber column compresses.
+    for (let j = 0; j < 3; j++) fN[j] = scl(fN[j], D.scale || 1);
+    if (i === 1 || i >= 5 && i <= 8 || i >= 11 && i <= 14) fN[1] = scl(norm(fN[1]), len(sub(P(b), P(a))) / len(sub(R0(b), R0(a))));
     B.set(mul(m4(fN, P(o)), inv(fR, R0(o))), i * 16);
   });
   // belt straps: stretch each rest segment onto its current end points
   const fw = n => norm(cross(sub(n('shL'), n('shR')), sub(n('neck'), n('pelvis'))));
   const an = i => [X[D.anchors[i] * 3], X[D.anchors[i] * 3 + 1], X[D.anchors[i] * 3 + 2]], fN = fw(P);
-  const cur = { up: an(2), si: an(0), bu: an(1), sh: add(add(P('shL'), scl(fN, .02)), [0, .06, 0]), ch: add(P('chest'), scl(fN, .135)), pe: add(add(P('pelvis'), scl(fN, .15)), [0, .03, 0]) };
+  const scale = D.scale || 1;
+  const cur = { up: an(2), si: an(0), bu: an(1), sh: add(add(P('shL'), scl(fN, .02 * scale)), [0, .06 * scale, 0]), ch: add(P('chest'), scl(fN, .135 * scale)), pe: add(add(P('pelvis'), scl(fN, .15 * scale)), [0, .03 * scale, 0]) };
   const rest = beltRest(R0);
   BELT.forEach(([a, b], i) => {
     const seg = (p, q) => { const u = sub(q, p), l = len(u) || 1e-6, un = scl(u, 1 / l); let v = norm(cross(un, [0, 1, 0])); if (!isFinite(v[0]) || len(v) < .5) v = [1, 0, 0]; return [un, v, cross(un, v), l]; };

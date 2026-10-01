@@ -75,7 +75,7 @@ export function createRenderer(canvas) {
       const tx = cs.s * 2 / SMS[i]; lv[12] = Math.round(lv[12] / tx) * tx; lv[13] = Math.round(lv[13] / tx) * tx;
       return mul(ortho(-cs.s, cs.s, -cs.s, cs.s, 0, cs.d), lv);
     });
-    const FU = Object.assign({}, U, { uSh0M: shM[0], uSh1M: shM[1], uSh0: 6, uSh1: 7, uShOn: 1, uT: sc.t });
+    const FU = Object.assign({}, U, { uSh0M: shM[0], uSh1M: shM[1], uSh0: 6, uSh1: 7, uShOn: 1, uT: sc.t, uPit: sc.pit ? 1 : 0 });
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE);
     tbind(6, null); tbind(7, null);
     for (const c of sc.cars) if (c.car) uploadNodes(c.car);

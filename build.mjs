@@ -39,5 +39,6 @@ if (!raw.includes('-->') && !raw.includes('--!>')) {
   const loader = `<script>fetch("data:;base64,${raw.toString('base64')}").then(r=>new Response(r.body.pipeThrough(new DecompressionStream("deflate-raw"))).text()).then(s=>(0,eval)(s))</script>`;
   html = Buffer.from(minShell.replace('%SCRIPT%', () => loader));
 }
+if (html.length > 65536) throw new Error(`Packed demo exceeds 64 KiB: ${html.length} bytes`);
 fs.writeFileSync(here + '/dist/index.html', html);
 console.log(`js ${js.length} B minified -> packed html ${html.length} B (${(html.length / 1024).toFixed(1)} KiB)`);

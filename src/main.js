@@ -34,6 +34,7 @@ W.onBreak = j => {
   if (W.bm[j] === 1) {
     for (let i = 0; i < 3; i++) FX.spawn(W.t, p, v, 0, [.8, .9, .95]);
     for (const C of [A, B]) { const ia = a - C.base, ib = b - C.base; if (ia < 0 || ia >= C.n) continue;
+      C.glassN = (C.glassN || 0) + 1;
       const r = [0, 1, 2].map(k => (C.restL[ia * 3 + k] + C.restL[ib * 3 + k]) / 2); if (r[2] > .3 && r[2] < .7 && r[1] > 1) { C.crackN = (C.crackN || 0) + 1; if (!C.crackP) C.crackP = r; C.crack = Math.min(1, C.crackN / 20); } }
   }
   else if (Math.random() < .3) FX.spawn(W.t, p, v, 1, PAINTS[view.paint][1]);
@@ -72,11 +73,12 @@ const curTest = () => TESTS[+$('test').value];
 $('test').onchange = () => { const t = curTest(); $('kmh').value = t.kmh; $('tnote').textContent = t.note; $('kmhv').textContent = t.kmh; labIdle(); };
 $('kmh').oninput = () => $('kmhv').textContent = $('kmh').value;
 $('paint').onchange = () => view.paint = +$('paint').value;
+for (const id of ['occupants', 'dummy', 'belt']) $(id).onchange = () => labIdle();
 for (const id of ['xray', 'roof', 'marks']) $(id).onchange = () => view[id] = $(id).checked ? 1 : 0;
 $('run').onclick = () => labRun(); $('rep').onclick = () => labReplay();
 $('test').value = 0; $('test').onchange(); setCam('side');
 function labIdle() {
-  const t = curTest(); S.start(t, +$('kmh').value, { runup: 0, belt: $('belt').checked, dummy: $('dummy').checked });
+  const t = curTest(); S.start(t, +$('kmh').value, { runup: 0, belt: $('belt').checked, dummy: $('dummy').checked, occupants: $('occupants').value });
   // park it at the start line, stopped (start() released a sled test immediately: undo that)
   S.stopReplay(); S.recOn = false; S.phase = 'idle'; A.mode = 'soft'; A.reset(); A.mode = 'rigid'; W.awake[1] = 0; W.awake[2] = 0; D.reseat();
   if (t.side) A.place([-.15, 0, -6], -Math.PI / 2, 0); else if (t.set === 'headon') { A.place([.15, 0, -52], 0, 0); B.reset(); B.place([-.15, 0, -28], Math.PI, 0); B.frozen = true; }
@@ -84,10 +86,10 @@ function labIdle() {
   labState = 'idle'; seq = null; show('report', false); FX.reset(); setCam('orbit'); orbit.user = 0; orbit.d = 7;
 }
 function labRun() {
-  const t = curTest(), kmh = +$('kmh').value, run = $('runup').checked && !t.side && t.set !== 'headon';
-  S.start(t, kmh, { runup: run ? Math.max(25, kmh * kmh / 3.6 / 3.6 / 2 / 2.2 + 8) : 0, belt: $('belt').checked, dummy: $('dummy').checked });
+  const t = curTest(), kmh = +$('kmh').value, run = $('runup').checked && !t.side;
+  S.start(t, kmh, { runup: run ? Math.max(25, kmh * kmh / 3.6 / 3.6 / 2 / 2.2 + 8) : 0, belt: $('belt').checked, dummy: $('dummy').checked, occupants: $('occupants').value });
   FX.reset(); labState = 'run'; seq = null; show('report', false); S.ts = 1; camT = 0;
-  if (run) setCam('track'); else setCam(t.side ? 'front' : 'side');
+  if (t.set === 'headon') setCam('wide'); else if (run) setCam('track'); else setCam(t.side ? 'front' : 'side');
   audio?.event('start');
 }
 function labReplay() { if (S.rec.length < 3) return; const w = replayWindow(); seq = { list: ['side', 'pit', 'onboard', 'top', 'front'].filter(c => c !== 'pit' || S.barrier === 'wall' || S.barrier === 'odb'), k: -1, w }; nextReplay(); }
@@ -119,6 +121,7 @@ function showReport() {
   }
   h += row('Footwell intrusion', f0(Math.max(0, r.intr)), ' mm', col(r.intr, 100, 200));
   h += row('Glass bonds broken', r.glass, '', '');
+  if (r.occupants?.length > 1) for (const d of r.occupants.slice(1)) h += row(d.scale < 1 ? d.name + ' (child dummy)' : d.name, `HIC ${f0(d.hic || 0)} / chest ${f0(d.chest3 || 0)} g`, '', '');
   h += '</table>';
   const verdict = !r.dummy ? 'No dummy on board.' : r.hic > 1000 || r.chest > 60 ? 'Life-threatening for the driver.' : r.hic > 650 || r.chest > 45 ? 'Serious injury likely.' : 'Survivable — the belt did its job.';
   h += `<p class="note" style="margin-top:8px">${verdict}${ref ? ' The simulation re-runs the 1976 test live; the lattice was calibrated to its crush and peak g.' : ''}</p><div class="row" style="display:flex;gap:6px"><button id="r2">replay</button><button id="r3">again</button></div>`;
@@ -155,7 +158,8 @@ function onKey(e) {
 function camFor(name, dt) {
   const cp = A.world(A.com), side = S.test?.side;
   const imp = side ? [0, .7, -.3] : S.barrier === 'odb' ? [.3, .7, -1.6] : S.barrier === 'tree' ? [.3, .8, -1.7] : S.useB ? [0, .7, -40] : S.barrier === 'ramp' ? [cp[0], .8, cp[2]] : [0, .7, -1.7];
-  const at = (S.phase === 'crash' || S.replay || labState !== 'run') ? lerp3(imp, cp, .5) : cp;
+  const impacted = S.replay ? S.rec[Math.floor(S.replay.i)]?.impact : W.hitBodies[A.body];
+  const at = impacted ? lerp3(imp, cp, .5) : cp;
   const C = { fov: .62, near: .05, far: 5000, tgt: at };
   switch (name) {
     case 'side': C.pos = add(at, side ? [6.5, .4, -1] : [-7.5, .35, .2]); C.fov = .5; break;
@@ -163,7 +167,12 @@ function camFor(name, dt) {
     case 'top': C.pos = add(at, [0, 9, .01]); C.up = [0, 0, 1]; C.fov = .55; break;
     case 'pit': C.pos = [0, -1.0, -2.4]; C.tgt = [0, .6, -1.4]; C.fov = 1.35; break;
     case 'onboard': C.pos = A.world([-.42, 1.17, .45]); C.tgt = A.world([.33, .95, -.05]); C.up = qrot(A.rot, [0, 1, 0]); C.fov = 1.15; break;
-    case 'wide': C.pos = add(at, [-13, 3.2, -11]); C.fov = .45; break;
+    case 'wide': {
+      if (S.useB && (S.phase === 'approach' || S.phase === 'idle')) {
+        const bp = B.world(B.com), gap = len(sub(cp, bp)), mid = add(scl(add(cp, bp), .5), [0, 0, -gap * .2]), d = Math.max(12, gap * 1.2);
+        C.tgt = mid; C.pos = add(mid, [-d, d * .25, 0]); C.fov = .75;
+      } else { C.pos = add(at, [-13, 3.2, -11]); C.fov = .45; } break;
+    }
     case 'track': { const v = A.vel, f = len(v) > .5 ? norm(v) : qrot(A.rot, [0, 0, 1]); C.pos = add(cp, add(scl(cross(f, [0, 1, 0]), -5.5), [0, .9, 0])); C.tgt = add(cp, scl(f, 1.5)); C.fov = .65; break; }
     default: { if (!orbit.user) orbit.yaw += dt * .08; orbit.yaw -= mouse.dx * .006; orbit.pitch = clamp(orbit.pitch + mouse.dy * .005, -.15, 1.45); mouse.dx = mouse.dy = 0;
       C.tgt = add(cp, [0, -.1, 0]); C.pos = add(C.tgt, [Math.sin(orbit.yaw) * Math.cos(orbit.pitch) * orbit.d, Math.sin(orbit.pitch) * orbit.d + .3, Math.cos(orbit.yaw) * Math.cos(orbit.pitch) * orbit.d]); }
@@ -230,9 +239,10 @@ function loop(now) {
   const cars = [carUnits(A, view.paint)];
   if (S.useB) cars.push(carUnits(B, view.paintB));
   const dShow = S.dummyOn && (mode === 'lab' || mode === 'film');
-  if (dShow) cars.push({ car: A, mesh: dumM, u: { uB: dummyBones(D, A.rot, rp ? rp.X : W.x), uA: new Float32Array(48), uDum: 1, uHub: WHEELS.flat(), uPaint: [1, 1, 1], uXray: 0, uExplode: 0, uMarks: 0, uRoof: 0 } });
-  const statics = [{ mesh: setM, M: I4 }, { mesh: lidM, M: I4, glass: 1 }];
+  if (dShow) for (const d of S.occupants) if (d.enabled) cars.push({ car: A, mesh: dumM, u: { uB: dummyBones(d, A.rot, rp ? rp.X : W.x), uA: new Float32Array(48), uDum: 1, uHub: WHEELS.flat(), uPaint: [1, 1, 1], uXray: 0, uExplode: 0, uMarks: 0, uRoof: 0 } });
   const bar = S.barrier;
+  const pit = bar === 'wall' || bar === 'odb' || bar === 'drive' || !bar;
+  const statics = [{ mesh: setM, M: I4 }, { mesh: lidM, M: I4, glass: 1, hidden: !pit }];
   statics[0].M = bar === 'odb' ? T4(.15 + BARRIER.w, 0, 0) : bar === 'wall' || bar === 'drive' || !bar ? I4 : T4(0, -30, 0);
   if (bar === 'odb') { const cd = S.colliders.odb.cd, m = cd.reduce((a, b) => a + b, 0) / cd.length; statics.push({ mesh: propM.odb, M: T4(.65, .2, -.54 + m, 1, 1, Math.max(.05, 1 - m / .54)) }); }
   if (bar === 'pole') statics.push({ mesh: propM.pole, M: I4 });
@@ -241,9 +251,12 @@ function loop(now) {
   statics.push({ mesh: propM.bales, M: I4 });
   const T = rp ? rp.rec.t + 0 : W.t;
   const parts = FX.pack(rp ? S.rec[0].t + rp.t : W.t, W.ground);
-  const m = R.frame({ t: now / 1000, res, cam, light: L, cars, statics, focus: A.world(A.com), parts, post });
+  const m = R.frame({ t: now / 1000, res, cam, light: L, cars, statics, pit, focus: A.world(A.com), parts, post });
   hud(m, rp, dt);
-  audio?.update({ rpm: A.rpm, throttle: A.throttle, speed: len(A.vel), slip: Math.max(...A.slip) * (A.mode === 'rigid' ? 1 : 0), soft: A.mode === 'soft' && !rp, crash: S.pk || 0, slow: !!rp || S.ts < 1, mode, tow: S.phase === 'tow' });
+  audio?.update({ rpm: A.rpm, throttle: A.throttle, speed: len(A.vel), slip: Math.max(...A.slip) * (A.mode === 'rigid' ? 1 : 0), soft: A.mode === 'soft' || !!rp,
+    pulse: rp ? rp.rec.pulse : S.phase === 'crash' ? S.lastPulse || 0 : 0, impact: rp ? rp.rec.impact : !!W.hitBodies[A.body], glass: rp ? rp.rec.glass || 0 : A.glassN || 0,
+    runTime: rp ? rp.t : W.t, slow: !!rp || S.ts < 1, mode, tow: S.phase === 'tow', paused: mode === 'film' ? film?.paused : S.paused,
+    filmTime: film?.time, shot: film?.shot });
 }
 requestAnimationFrame(loop);
 // ---------------- HUD

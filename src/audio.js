@@ -1,47 +1,133 @@
-// Procedural sound: the 602 cc flat twin (one firing per crank revolution, a buzzy low twin), tyre scrub, wind,
-// the tow winch, crash crunch and glass, and a little accordion-ish score for the film.
+// Procedural flat-twin exhaust, road noise, impacts and a film-clock three-beat score.
 export function createAudio() {
   const A = new (window.AudioContext || window.webkitAudioContext)();
-  const out = A.createDynamicsCompressor(); out.connect(A.destination);
-  const master = A.createGain(); master.gain.value = .8; master.connect(out);
-  const g = (v, to = master) => { const x = A.createGain(); x.gain.value = v; x.connect(to); return x; };
-  const noise = A.createBuffer(1, A.sampleRate * 2, A.sampleRate); { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-  const src = () => { const s = A.createBufferSource(); s.buffer = noise; s.loop = true; s.start(); return s; };
-  const bq = (type, f, q = 1) => { const b = A.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
-  // engine: pulse train at the firing rate through two body resonances, plus intake noise
-  const eng = A.createOscillator(); eng.type = 'sawtooth'; const eng2 = A.createOscillator(); eng2.type = 'square';
-  const ef = bq('lowpass', 500, 2), ef2 = bq('bandpass', 180, 3), eG = g(0);
-  eng.connect(ef); eng2.connect(ef); ef.connect(eG); ef.connect(ef2); ef2.connect(eG); eng.start(); eng2.start();
-  const inN = src(), inF = bq('bandpass', 900, 1.5), inG = g(0); inN.connect(inF); inF.connect(inG);
-  const wN = src(), wF = bq('lowpass', 500), wG = g(0); wN.connect(wF); wF.connect(wG);
-  const tN = src(), tF = bq('bandpass', 1400, 4), tG = g(0); tN.connect(tF); tF.connect(tG);
-  const winch = A.createOscillator(); winch.type = 'triangle'; const wiG = g(0); winch.connect(bq('lowpass', 1200)).connect(wiG); winch.start();
-  let muted = false, lastCrash = 0, prevSoft = false;
-  const set = (p, v, k = .05) => p.setTargetAtTime(isFinite(v) ? v : 0, A.currentTime, k);
-  function crunch(e) { // metal: filtered noise bursts + low thump + ringing partials
-    const t = A.currentTime;
-    for (let i = 0; i < 6; i++) { const s = A.createBufferSource(); s.buffer = noise; const f = bq('bandpass', 300 + Math.random() * 2500, 2 + Math.random() * 4), gg = A.createGain();
-      gg.gain.setValueAtTime(0, t + i * .018); gg.gain.linearRampToValueAtTime(.6 * e, t + i * .018 + .005); gg.gain.exponentialRampToValueAtTime(.001, t + i * .018 + .25 + Math.random() * .4);
-      s.connect(f); f.connect(gg); gg.connect(master); s.start(t + i * .018, Math.random()); s.stop(t + 1.2); }
-    const o = A.createOscillator(), og = A.createGain(); o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(30, t + .3);
-    og.gain.setValueAtTime(e, t); og.gain.exponentialRampToValueAtTime(.001, t + .5); o.connect(og); og.connect(master); o.start(t); o.stop(t + .6);
-    for (let i = 0; i < 5; i++) { const r = A.createOscillator(), rg = A.createGain(); r.frequency.value = 600 + Math.random() * 3000; rg.gain.setValueAtTime(.04 * e, t); rg.gain.exponentialRampToValueAtTime(.0005, t + .8 + Math.random()); r.connect(rg); rg.connect(master); r.start(t); r.stop(t + 2); }
+  let seed = 1976;
+  const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+  const out = A.createDynamicsCompressor();
+  out.threshold.value = -12; out.knee.value = 12; out.ratio.value = 5;
+  out.attack.value = .003; out.release.value = .18; out.connect(A.destination);
+  const g = (v, to = out) => { const n = A.createGain(); n.gain.value = v; n.connect(to); return n; };
+  const master = g(.75), effects = g(1, master), music = g(0, master);
+  const bq = (type, f, q = .7) => { const n = A.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; return n; };
+  const noise = A.createBuffer(1, A.sampleRate * 2, A.sampleRate);
+  const nd = noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = rnd() * 2 - 1;
+  const set = (p, v, k = .05) => p.setTargetAtTime(Number.isFinite(v) ? v : 0, A.currentTime, k);
+  const loop = (filter, gain) => { const n = A.createBufferSource(); n.buffer = noise; n.loop = true; n.connect(filter).connect(gain); n.start(0, rnd()); };
+  // Narrow combustion pulses with unequal harmonics, softened by the exhaust body.
+  const re = new Float32Array(33), im = new Float32Array(33);
+  for (let i = 1; i < im.length; i++) im[i] = Math.exp(-i * .13) * (i % 2 ? 1 : .65);
+  const eng = A.createOscillator(); eng.setPeriodicWave(A.createPeriodicWave(re, im));
+  const ef = bq('lowpass', 600), eb = bq('peaking', 140, 1.2), eG = g(0, effects);
+  eb.gain.value = 5; eng.connect(ef).connect(eb).connect(eG); eng.start();
+  const fan = A.createOscillator(), fanG = g(0, effects); fan.type = 'triangle'; fan.connect(bq('bandpass', 1800, .6)).connect(fanG); fan.start();
+  const inF = bq('bandpass', 900), inG = g(0, effects); loop(inF, inG);
+  const wF = bq('lowpass', 500), wG = g(0, effects); loop(wF, wG);
+  const roadF = bq('bandpass', 220, .5), roadG = g(0, effects); loop(roadF, roadG);
+  const tF = bq('bandpass', 1600, 1.3), tG = g(0, effects); loop(tF, tG);
+  const winch = A.createOscillator(), wiG = g(0, effects); winch.type = 'triangle'; winch.connect(bq('lowpass', 1200)).connect(wiG); winch.start();
+  // Generated stereo room tail for the score; impact sounds remain close and dry.
+  const rev = A.createConvolver(), ir = A.createBuffer(2, A.sampleRate * .8, A.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (rnd() * 2 - 1) * Math.exp(-i / A.sampleRate * 9); }
+  rev.buffer = ir; music.connect(rev); rev.connect(g(.16, master));
+  const voices = new Set();
+  function envelope(p, t, peak, dur, attack = .003) {
+    p.setValueAtTime(0, t); p.linearRampToValueAtTime(peak, t + attack);
+    p.exponentialRampToValueAtTime(.0001, t + dur); p.setValueAtTime(0, t + dur + .005);
   }
-  function glass() { const t = A.currentTime; for (let i = 0; i < 14; i++) { const r = A.createOscillator(), rg = A.createGain(), d = Math.random() * .4; r.type = 'sine'; r.frequency.value = 2500 + Math.random() * 6000; rg.gain.setValueAtTime(0, t + d); rg.gain.linearRampToValueAtTime(.03, t + d + .002); rg.gain.exponentialRampToValueAtTime(.0005, t + d + .15); r.connect(rg); rg.connect(master); r.start(t + d); r.stop(t + d + .2); } }
+  function finish(n, nodes, t, score = false) {
+    if (score) voices.add(n);
+    n.onended = () => { voices.delete(n); n.disconnect(); for (const x of nodes) x.disconnect(); };
+    n.stop(t);
+  }
+  function burst(t, f, q, amp, dur, rate = 1) {
+    const n = A.createBufferSource(), filter = bq('bandpass', f, q), v = g(0, effects);
+    n.buffer = noise; n.playbackRate.value = rate; envelope(v.gain, t, amp, dur);
+    filter.frequency.setValueAtTime(f, t); filter.frequency.exponentialRampToValueAtTime(f * .5, t + dur);
+    n.connect(filter).connect(v); n.start(t, rnd() * .6); finish(n, [filter, v], t + dur + .01);
+  }
+  function tone(t, f, amp, dur, type = 'sine', bus = effects, end = f, score = false) {
+    const n = A.createOscillator(), v = g(0, bus); n.type = type;
+    n.frequency.setValueAtTime(f, t); n.frequency.exponentialRampToValueAtTime(end, t + dur);
+    envelope(v.gain, t, amp, dur, score ? .02 : .003); n.connect(v); n.start(t); finish(n, [v], t + dur + .01, score);
+  }
+  function glass(e = 1, slow = false) {
+    const t = A.currentTime, pitch = slow ? .65 : 1;
+    burst(t, 4800 * pitch, .6, .24 * e, .09 / pitch, pitch);
+    for (let i = 0; i < 20; i++) {
+      const d = .025 + rnd() * rnd() * .9, f = (2200 + rnd() * 7000) * pitch, dur = .025 + rnd() * .09;
+      tone(t + d, f, (.009 + rnd() * .014) * e, dur / pitch);
+      if (i % 4 === 0) burst(t + d, f, 2, .06 * e, dur, pitch);
+    }
+  }
+  function crunch(e, slow = false) {
+    const t = A.currentTime, pitch = slow ? .65 : 1;
+    tone(t, 105 * pitch, .65 * e, .22 / pitch, 'sine', effects, 32 * pitch);
+    burst(t, 1700 * pitch, .7, .8 * e, .09 / pitch, pitch);
+    for (let i = 0; i < 8; i++) {
+      const d = i * .025 / pitch, f = (160 + rnd() * 1200) * pitch;
+      burst(t + d, f, .8 + rnd() * 2, e * (.22 + rnd() * .2), (.1 + rnd() * .2) / pitch, pitch);
+      tone(t + d, f, .035 * e, (.07 + rnd() * .17) / pitch, 'triangle', effects, f * .84);
+    }
+    for (let i = 0; i < 5; i++) burst(t + .25 + i * .1, 350 + rnd() * 1400, 2, .045 * e, .06);
+    duckUntil = t + 1.2;
+  }
+  const chords = [[57, 60, 64], [53, 57, 60], [50, 53, 57], [52, 56, 59]];
+  const melody = [0, 2, 1, 2, 4, 2, 1, 0, 2, 1, 0, -1], beat = 60 / 112;
+  let nextBeat = 0, lastFilm = null, lastShot = -1, scorePlaying = false;
+  function stopScore() { for (const n of voices) { try { n.stop(); } catch {} } voices.clear(); }
+  function score(s) {
+    const playing = s.mode === 'film' && !s.paused && Number.isFinite(s.filmTime);
+    if (!playing) { if (scorePlaying) stopScore(); scorePlaying = false; lastFilm = null; set(music.gain, 0, .025); return; }
+    const ft = s.filmTime, shot = s.shot || 0;
+    if (lastFilm === null || ft < lastFilm || ft - lastFilm > .3 || shot !== lastShot) {
+      stopScore(); nextBeat = Math.ceil(ft / beat - 1e-6);
+    }
+    lastFilm = ft; lastShot = shot; scorePlaying = true;
+    const tension = shot === 3 || shot === 4 || shot === 6;
+    set(music.gain, (A.currentTime < duckUntil ? .15 : 1) * (tension ? .6 : .85), .08);
+    while (nextBeat * beat < ft + .12) {
+      const n = nextBeat++, t = A.currentTime + Math.max(0, n * beat - ft), ch = chords[Math.floor(n / 6) % 4];
+      const freq = m => 440 * 2 ** ((m - 69) / 12);
+      if (n % 3 === 0) tone(t, freq(ch[0] - 12), .12, .4, 'triangle', music, freq(ch[0] - 12), true);
+      else for (const m of ch) tone(t, freq(m), .035, .21, 'triangle', music, freq(m), true);
+      if (!tension || n % 3 === 0) {
+        const ix = melody[n % melody.length];
+        if (ix >= 0) {
+          const m = ch[ix % 3] + 12 + (ix > 2 ? 12 : 0), f = freq(m);
+          tone(t, f, .055, tension ? .7 : .43, 'triangle', music, f, true);
+          tone(t, f * 2.003, .012, .35, 'sine', music, f * 2, true);
+        }
+      }
+    }
+  }
+  let muted = false, lastCrash = -10, lastGlass = -10, prevGlass = 0, prevPulse = 0, lastRun = null, duckUntil = 0;
   return {
     ctx: A,
     event(k) { if (k === 'glass') glass(); if (k === 'crash') crunch(1); },
     update(s) {
-      const rpm = s.rpm || 0, f = rpm / 60;
-      set(eng.frequency, Math.max(f, 1)); set(eng2.frequency, Math.max(f * 2, 1)); set(ef.frequency, 300 + f * 9);
-      set(eG.gain, s.mode === 'film' || s.mode === 'drive' || s.mode === 'lab' ? (rpm > 300 ? .12 + .14 * s.throttle : 0) * (s.slow ? .2 : 1) : 0);
-      set(inG.gain, rpm > 300 ? .015 + .05 * s.throttle : 0); set(inF.frequency, 600 + f * 12);
-      set(wG.gain, Math.min(.25, s.speed * s.speed * .0004)); set(wF.frequency, 300 + s.speed * 30);
-      set(tG.gain, Math.min(.2, (s.slip || 0) * .2));
-      set(wiG.gain, s.tow ? .05 : 0); set(winch.frequency, 200 + s.speed * 40);
-      if (s.soft && !prevSoft && s.speed > 2 && A.currentTime - lastCrash > 1) { crunch(Math.min(1, s.speed / 12)); if (s.speed > 6) glass(); lastCrash = A.currentTime; }
-      prevSoft = s.soft;
+      const active = s.mode !== 'menu' && !s.paused, rpm = s.rpm || 0, f = rpm / 60;
+      const scale = s.slow ? .65 : 1, run = s.runTime;
+      if (lastRun !== null && run < lastRun) { lastCrash = lastGlass = -10; prevPulse = prevGlass = 0; }
+      lastRun = run;
+      set(eng.frequency, Math.max(1, f * scale)); set(ef.frequency, (350 + f * 7 + (s.throttle || 0) * 700) * scale);
+      set(eG.gain, active && rpm > 300 && !s.soft ? .13 + .1 * (s.throttle || 0) : 0);
+      set(fan.frequency, Math.max(1, f * 7 * scale)); set(fanG.gain, active && rpm > 300 && !s.soft ? .012 : 0);
+      set(inG.gain, active && rpm > 300 && !s.soft ? .025 + .055 * (s.throttle || 0) : 0); set(inF.frequency, 600 + f * 8);
+      set(wG.gain, active ? Math.min(.15, s.speed ** 2 * .0002) : 0); set(wF.frequency, 250 + s.speed * 20);
+      set(roadG.gain, active ? Math.min(.12, s.speed * .004) : 0);
+      set(tG.gain, active ? Math.min(.16, Math.max(0, (s.slip || 0) - .08) * .15) : 0);
+      set(wiG.gain, active && s.tow ? .045 : 0); set(winch.frequency, 180 + s.speed * 22);
+      const pulse = s.pulse || 0;
+      if (active && s.impact !== false && pulse > 4 && pulse > prevPulse + 1 && A.currentTime - lastCrash > .7) {
+        crunch(Math.min(1, .25 + pulse / 45), s.slow);
+        lastCrash = A.currentTime;
+      }
+      if (active && s.glass > prevGlass && A.currentTime - lastGlass > .25) {
+        glass(Math.min(1, .3 + (s.glass - prevGlass) / 100), s.slow); lastGlass = A.currentTime;
+      }
+      prevGlass = s.glass || 0;
+      prevPulse = pulse; score(s);
     },
-    mute() { muted = !muted; master.gain.value = muted ? 0 : .8; }
+    mute() { muted = !muted; set(master.gain, muted ? 0 : .75, .015); }
   };
 }

@@ -14,7 +14,7 @@ export function World(cap = 6000, bcap = 60000) {
     fyc: new Float32Array(bcap), fyt: new Float32Array(bcap), brk: new Float32Array(bcap), bd: new Float32Array(bcap), alive: new Uint8Array(bcap),
     pl: new Float32Array(bcap), bm: new Uint8Array(bcap), bf: new Float32Array(bcap),
     colliders: [], pulleys: [], act: new Int32Array(0), isAct: new Uint8Array(0), bodies: [], ground: () => 0, groundN: null, contactSelf: true,
-    energy: 0, onBreak: null, sleeping: new Uint8Array(64), awake: new Uint8Array(64).fill(1),
+    energy: 0, onBreak: null, hitBodies: new Uint8Array(64), sleeping: new Uint8Array(64), awake: new Uint8Array(64).fill(1),
   };
   return W;
 }
@@ -53,7 +53,7 @@ export function step(W, dt, sub) {
       x[k] += v[k] * h; x[k + 1] += v[k + 1] * h; x[k + 2] += v[k + 2] * h;
     }
     solveBeams(W, h2, s & 1);
-    for (const P of W.pulleys) if (P.on) solvePulley(W, P, h2);
+    for (const P of W.pulleys) if (P.on && W.awake[W.body[P.path[1]]]) solvePulley(W, P, h2);
     collide(W, h, s);
     for (let i = 0; i < n; i++) {
       if (!w[i] || !W.awake[W.body[i]]) continue;
@@ -139,7 +139,8 @@ function collide(W, h, s) {
     if (gy < -1e8 || (s & 7) === 0) gy = W.gnd[i] = W.ground(px, pz);
     const ri = r[i] * (W.flag[i] & 2 ? 1 : .5);
     if (py - ri < gy) { const N = W.groundN ? W.groundN(px, pz) : [0, 1, 0]; const d = gy - (py - ri); x[k] += N[0] * d * N[1]; x[k + 1] += d * N[1] * N[1]; x[k + 2] += N[2] * d * N[1]; addC(i, -1, N[0], N[1], N[2], d, W.mu[i]); }
-    for (const c of W.colliders) c.hit(W, i, ri);
+    if (py - ri < gy && !(W.flag[i] & 2) && W.rest[k + 1] > .5) W.hitBodies[W.body[i]] = 1;
+    for (const c of W.colliders) { const force = c.force; c.hit(W, i, ri); if (c.force > force) W.hitBodies[W.body[i]] = 1; }
   }
   // node-node, hashed. Only "active" nodes query the hash (engine block, hubs, dummy, a second vehicle):
   // a car's thin shell folding onto itself is left to the beams.
@@ -160,8 +161,9 @@ function collide(W, h, s) {
         const same = W.body[j] === bi;
         if (same && !W.contactSelf) continue;
         const jk = j * 3, dx = x[k] - x[jk], dy = x[k + 1] - x[jk + 1], dz = x[k + 2] - x[jk + 2];
-        const R = same ? W.rs[i] + W.rs[j] : r[i] + r[j], d2 = dx * dx + dy * dy + dz * dz;
+        const R = same ? W.rs[i] + W.rs[j] : r[i] * (W.flag[i] & 14 ? 1 : .5) + r[j] * (W.flag[j] & 14 ? 1 : .5), d2 = dx * dx + dy * dy + dz * dz;
         if (d2 >= R * R || d2 < 1e-12) continue;
+        if (!same) { W.hitBodies[bi] = 1; W.hitBodies[W.body[j]] = 1; }
         if (same) { const rx = W.rest[k] - W.rest[jk], ry = W.rest[k + 1] - W.rest[jk + 1], rz = W.rest[k + 2] - W.rest[jk + 2]; if (rx * rx + ry * ry + rz * rz < .09) continue; }
         const wi = w[i], wj = w[j], ws = wi + wj; if (!ws) continue;
         const d = Math.sqrt(d2), pad = (W.flag[i] | W.flag[j]) & 8 ? PAD : 1, pen = (R - d) * pad, nx = dx / d, ny = dy / d, nz = dz / d, si = pen * wi / ws, sj = pen * wj / ws; // padded parts (wheel rim, dash) give

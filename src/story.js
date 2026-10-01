@@ -84,6 +84,7 @@ export function createFilm(api) {
     if (e.code === 'Space') paused = !paused;
   };
   F.seek = x => { t = x; }; F.total = total;
+  Object.defineProperties(F, { time: { get: () => t }, shot: { get: () => k }, paused: { get: () => paused } });
   // labels for the anatomy shot and the result card
   F.overlay = (ctx, m, s, proj) => {
     const Wd = ctx.canvas.width, H = ctx.canvas.height;

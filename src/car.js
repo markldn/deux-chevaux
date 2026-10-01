@@ -190,13 +190,14 @@ export function buildCar() {
   const fab = { mat: FABRIC, col: C(.32, .3, .27, .9), part: P_INT }, frm = { mat: CHASSIS, col: C(.15, .15, .15, .4), part: P_INT };
   for (const [x, y, z] of SEAT) { // tubular seat frames with hammock-style covers
     const w = .24, b = z - .3;
-    tube(g, [[x - w, .32, z + .26], [x - w, .45, z + .22], [x - w, .43, b], [x - w, .95, b - .14], [x + w, .95, b - .14], [x + w, .43, b], [x + w, .45, z + .22], [x + w, .32, z + .26]], .012, 6, frm);
-    blob(g, [x, .45, z - .04], [w - .01, .04, .25], 3, fab, p => [p[0], p[1] - .03 * Math.cos(p[2] * 6), p[2]]);
-    blob(g, [x, .7, b - .07], [w - .01, .24, .035], 3, fab, p => [p[0], p[1], p[2] - p[1] * .28]);
+    const bone = x > 0 ? 14 : 15;
+    tube(g, [[x - w, .32, z + .26], [x - w, .45, z + .22], [x - w, .43, b], [x - w, .95, b - .14], [x + w, .95, b - .14], [x + w, .43, b], [x + w, .45, z + .22], [x + w, .32, z + .26]], .012, 6, { ...frm, bone });
+    blob(g, [x, .45, z - .04], [w - .01, .04, .25], 3, { ...fab, bone }, p => [p[0], p[1] - .03 * Math.cos(p[2] * 6), p[2]]);
+    blob(g, [x, .7, b - .07], [w - .01, .24, .035], 3, { ...fab, bone }, p => [p[0], p[1], p[2] - p[1] * .28]);
   }
-  tube(g, [[-.55, .32, -.65], [-.55, .43, -.7], [.55, .43, -.7], [.55, .32, -.65]], .012, 6, frm);      // rear bench
-  blob(g, [0, .44, -.85], [.55, .045, .23], 3, fab);
-  blob(g, [0, .7, -1.12], [.55, .25, .04], 3, fab, p => [p[0], p[1], p[2] - p[1] * .35]);
+  tube(g, [[-.55, .32, -.65], [-.55, .43, -.7], [.55, .43, -.7], [.55, .32, -.65]], .012, 6, { ...frm, bone: 16 });      // rear bench
+  blob(g, [0, .44, -.85], [.55, .045, .23], 3, { ...fab, bone: 16 });
+  blob(g, [0, .7, -1.12], [.55, .25, .04], 3, { ...fab, bone: 16 }, p => [p[0], p[1], p[2] - p[1] * .35]);
   // dashboard: parcel shelf, instrument pod, umbrella-handle gear lever, pedals
   blob(g, [0, .97, .55], [.62, .02, .1], 6, { mat: DASH, col: C(1, 1, 1, .5), part: P_INT, nu: 8, nv: 24 });
   blob(g, [.31, 1.03, .48], [.11, .055, .05], 6, { mat: BLACK, col: C(.03, .03, .03, .5), part: P_INT });

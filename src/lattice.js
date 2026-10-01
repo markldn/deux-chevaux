@@ -167,7 +167,8 @@ export function buildLattice(W, body, totalMass = 600) {
   const adj = Array.from({ length: W.n }, () => []);
   for (const j of beams) { adj[W.ba[j]].push(W.bb[j]); adj[W.bb[j]].push(W.ba[j]); }
   for (let j = beams[beams.length - 1] + 1; j < W.nb; j++) { adj[W.ba[j]].push(W.bb[j]); adj[W.bb[j]].push(W.ba[j]); }
-  return { nodes, idx, base, count: nodes.length, hubs: hubs.map(h => nodes[h].id), sw: nodes[sw].id, col: nodes[col].id, adj, near, piv: piv.map(p => [nodes[p[0]].id, nodes[p[1]].id]) };
+  const seatMounts = [[.33, .25, -.12], [-.33, .25, -.12], [0, .25, -.85]].map(p => nodes.filter(o => o.cls === C.FLOOR || o.cls === C.RAIL).sort((a, b) => dd(a.p, p) - dd(b.p, p)).slice(0, 4).map(o => o.id - base));
+  return { nodes, idx, base, count: nodes.length, hubs: hubs.map(h => nodes[h].id), sw: nodes[sw].id, col: nodes[col].id, adj, near, seatMounts, piv: piv.map(p => [nodes[p[0]].id, nodes[p[1]].id]) };
 }
 // skin binding: 4 nodes + weights per vertex. Wheels/arms/driveshafts are driven by bones (weight 0).
 export function bindSkin(g, L) {
@@ -179,7 +180,8 @@ export function bindSkin(g, L) {
     if ((bone >= 1 && bone <= 4) || bone >= 8) continue;
     const p = [g.P[v * 3], g.P[v * 3 + 1], g.P[v * 3 + 2]];
     if (bone === 5) { J[v * 4] = local(N.findIndex(o => o.cls === C.STEER)); Wt[v * 4] = 1; continue; }
-    const ok = part === P_ENGINE ? o => o.cls === C.ENG || o.cls === C.BULK : part === P_INT ? o => o.cls === C.FLOOR || o.cls === C.RAIL || o.cls === C.BULK || o.cls === C.DASH || o.cls === C.SEAT : o => o.cls !== C.ENG || part === P_SUSP;
+    const glass = g.M[v * 4] === 0 && g.K[v * 4] < 0;
+    const ok = part === P_ENGINE ? o => o.cls === C.ENG || o.cls === C.BULK : part === P_INT ? o => o.cls === C.FLOOR || o.cls === C.RAIL || o.cls === C.BULK || o.cls === C.DASH || o.cls === C.SEAT : o => (o.cls !== C.ENG || part === P_SUSP) && (glass || o.cls !== C.GLASS);
     const gi = Math.round((p[0] + .675) / GH), gj = Math.round((p[1] - .25) / GH), gk = Math.round((1.95 - p[2]) / GH);
     const cand = [];
     for (let R = 1; R <= 6 && cand.length < 4; R++) {

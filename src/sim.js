@@ -27,14 +27,23 @@ export function createSim() {
   W.groundN = (x, z) => S.ramp && rampH(x, z) > 0 ? rampN(x, z) : normalAt(x, z);
   const A = createCar(W, 1, { payload: 78 }), D = createDummy(W, 2, A);
   const B = createCar(W, 3);
+  const passengers = [createDummy(W, 4, A, { side: -1, passenger: true, name: 'Front passenger' }), createDummy(W, 5, A, { rear: true, passenger: true, name: 'Rear left' }), createDummy(W, 6, A, { rear: true, side: -1, passenger: true, name: 'Rear right' })];
+  const occupants = [D, ...passengers], emptyMass = A.M - 78;
   setActive(W, [3]);
-  S.cars = [A, B]; S.A = A; S.B = B; S.D = D; S.useB = false;
+  S.cars = [A, B]; S.A = A; S.B = B; S.D = D; S.occupants = occupants; S.useB = false;
   B.place([0, -50, 400], 0, 0); B.frozen = true;
   // the dummy rides with car A; it goes soft with it
-  A.ext.push({ onSoft: () => { if (S.dummyOn) D.release(); }, onRigid: () => { if (S.dummyOn) D.capture(); }, near: c => S.useB && B.mode === 'rigid' && len(sub(c.world(c.com), B.world(B.com))) < 4.4 });
-  B.ext.push({ near: c => S.useB && len(sub(c.world(c.com), A.world(A.com))) < 4.4, onSoft: () => goSoft(A) });
+  A.ext.push({ onSoft: () => { S.waitingDummy = S.dummyOn; }, onRigid: () => { S.waitingDummy = false; for (const d of occupants) if (d.enabled) d.capture(); }, near: c => S.useB && B.mode === 'rigid' && (len(c.vel) > .5 || len(B.vel) > .5) && len(sub(c.world(c.com), B.world(B.com))) < 4.4 });
+  B.ext.push({ near: c => S.useB && (len(c.vel) > .5 || len(A.vel) > .5) && len(sub(c.world(c.com), A.world(A.com))) < 4.4, onSoft: () => goSoft(A) });
   S.dummyOn = true;
-  W.onSub = h => { if (!D.attached) D.sample(h); if (S.recOn) { const g = S.pulse(); if (g > S.pk) S.pk = g; S.lastPulse = g; } };
+  W.onSub = h => {
+    if (S.recOn) { const g = S.pulse(); if (g > S.pk) S.pk = g; S.lastPulse = g; }
+    // Releasing the tow cable is not a collision. Keep the seated pose through the approach.
+    if (S.waitingDummy && (W.hitBodies[A.body] || S.ramp && len(A.ang) > 1)) {
+      S.waitingDummy = false; for (const d of occupants) if (d.enabled) d.release();
+    } else if (S.waitingDummy) for (const d of occupants) if (d.enabled) d.follow();
+    for (const d of occupants) if (d.enabled && !d.attached) d.sample(h);
+  };
   // ---------------- colliders
   const col = S.colliders;
   col.block = boxCollider([0, BARRIER.h / 2, BARRIER.d / 2], [BARRIER.w, BARRIER.h / 2, BARRIER.d / 2], 0, { mu: .45 });
@@ -63,7 +72,13 @@ export function createSim() {
   // ---------------- tests
   S.start = (test, kmh, o = {}) => {
     S.test = test; S.kmh = kmh; S.replay = null; S.rec = []; S.recOn = false; S.report = null; S.events = []; S.t = 0;
-    A.reset(); D.reseat(); S.dummyOn = o.dummy !== false; D.belt(o.belt !== false && S.dummyOn); A.frozen = false;
+    A.reset(); W.hitBodies.fill(0); S.dummyOn = o.dummy !== false; S.layout = o.occupants || 'driver'; S.waitingDummy = false; S.lastPulse = 0;
+    occupants.forEach((d, i) => {
+      d.enabled = S.dummyOn && (i === 0 || S.layout === 'pair' && i === 1 || S.layout === 'family' || S.layout === 'adults');
+      d.reseat(S.layout === 'family' && i > 1 ? .68 : 1); d.belt(o.belt !== false && d.enabled);
+    });
+    const mass = emptyMass + occupants.reduce((m, d) => m + (d.enabled ? 78 * d.scale ** 3 : 0), 0), ratio = mass / A.M;
+    A.M = mass; A.I = A.I.map(v => v * ratio); A.F0s = A.F0s.map(v => v * ratio); A.frozen = false;
     S.useB = test.set === 'headon';
     S.setBarrier(test.set);
     const v = kmh / 3.6;
@@ -71,17 +86,18 @@ export function createSim() {
     const run = o.runup ?? 0;
     if (test.side) { A.place([-.15, 0, -1.3 - .1 - v * .25], -Math.PI / 2, 0); A.vel = [0, 0, v]; S.phase = 'sled'; }
     else if (test.set === 'headon') {
-      B.reset(); B.frozen = false; B.place([-.15, 0, 4.0 + v * .25 - 40], Math.PI, v); A.place([.15, 0, -4.0 - v * .25 - 40], 0, v); S.phase = 'sled';
+      const approach = run ? 3 : 1.25;
+      B.reset(); B.frozen = false; B.place([-.15, 0, 1.95 + v * approach - 40], Math.PI, v); A.place([.15, 0, -1.95 - v * approach - 40], 0, v); S.phase = 'approach';
     } else if (test.set === 'ramp') { A.place([.18, 0, RAMP.z0 - 3 - run], 0, run ? 0 : v); S.phase = run ? 'tow' : 'free'; }
     else { const z0 = -1.95 - .05 - v * .25 - run; A.place([test.set === 'tree' ? 0 : 0, 0, z0], 0, run ? 0 : v); S.phase = run ? 'tow' : 'sled'; }
     if (!S.useB) { B.place([0, -50, 400], 0, 0); B.frozen = true; B.mode = 'rigid'; W.awake[3] = 0; }
-    A.tow = run && !test.side ? { on: 1, f: 0, x: A.pos[0], v } : null;
+    A.tow = run && !test.side && test.set !== 'headon' ? { on: 1, f: 0, x: A.pos[0], v } : null;
     S.target = v;
     pv = null; pf = 0;
-    if (S.dummyOn) D.follow(); else park();
+    for (const d of occupants) if (d.enabled) d.follow(); else park(d);
     if (S.phase === 'sled') release();
   };
-  function park() { for (const i of D.ids) { W.x[i * 3 + 1] = W.p[i * 3 + 1] = -60; W.v[i * 3 + 1] = 0; } }
+  function park(d) { for (const i of d.ids) { W.x[i * 3 + 1] = W.p[i * 3 + 1] = -60; W.v[i * 3 + 1] = 0; } W.awake[d.body] = 0; }
   function release() {
     S.phase = 'crash'; A.tow = null; S.tRel = S.t;
     goSoft(A); if (S.useB) goSoft(B);
@@ -92,6 +108,10 @@ export function createSim() {
     if (S.paused || S.replay) return;
     const sdt = dt * S.ts;
     S.t += sdt;
+    if (S.phase === 'approach') {
+      A.vel[2] = S.target; B.vel[2] = -S.target;
+      if (len(sub(A.world(A.com), B.world(B.com))) < 4.8) release();
+    }
     if (S.phase === 'tow' && A.tow) { // tow winch: speed controller on the sled
       const vf = dot(A.vel, qrot(A.rot, [0, 0, 1]));
       A.tow.f = clamp((S.target - vf) * A.M * 3, -2000, A.M * 4);
@@ -110,7 +130,7 @@ export function createSim() {
       }
     }
     for (const c of S.cars) if (!c.frozen) c.update(sdt, S.t);
-    if (D.attached && S.dummyOn) D.follow(); else if (!S.dummyOn) park();
+    for (const d of occupants) if (d.enabled && d.attached) d.follow(); else if (!d.enabled) park(d);
     // a new recording only for a real impact: a wreck resting against a tree must not wipe the last crash
     if (S.phase === 'free' && A.mode === 'soft' && len(A.vel) > 2.5) { S.phase = 'crash'; S.recOn = true; S.rec = []; S.lastRec = -1; S.tRel = S.t; S.pk = 0; }
     if (S.phase === 'crash') {
@@ -124,7 +144,8 @@ export function createSim() {
     const ids = [], X = [];
     const pack = (b, n) => W.x.slice(b * 3, (b + n) * 3);
     S.rec.push({ t: W.t, a: pack(A.base, A.n), b: S.useB ? pack(B.base, B.n) : null, d: pack(D.ids[0], D.ids.length), da: A.dmg.slice(), db: S.useB ? B.dmg.slice() : null,
-      spin: A.spin.slice(), pulse: S.lastPulse || 0, head: D.fh || 0, chest: D.fc || 0, belt: D.diag.f, crack: A.crack || 0, refA: A.ref, refB: B.ref, c0a: A.fitC0, c0b: B.fitC0 });
+      others: passengers.map(d => d.enabled ? pack(d.ids[0], d.ids.length) : null),
+      spin: A.spin.slice(), pulse: S.lastPulse || 0, impact: !!W.hitBodies[A.body], head: D.fh || 0, chest: D.fc || 0, belt: D.diag.f, crack: A.crack || 0, glass: A.glassN || 0, refA: A.ref, refB: B.ref, c0a: A.fitC0, c0b: B.fitC0 });
   }
   // cabin deceleration (g), filtered
   let pv = null, pf = 0, pt = 0;
@@ -146,7 +167,7 @@ export function createSim() {
     const sw = A.L.sw - A.base, steer = (A.restL[sw * 3 + 2] - A.loc[sw * 3 + 2]) * 1000;
     let broken = 0, glass = 0; for (let j = 0; j < W.nb; j++) if (!W.alive[j]) { broken++; if (W.bm[j] === 1) glass++; }
     S.report = { test: test(), kmh: S.kmh, g: pulse, crush: (L0 - L1) * 1000, hic: m.hic || 0, head: m.head3 || 0, chest: m.chest3 || 0, belt: (m.belt || 0) / 9.81, lap: (m.lap || 0) / 9.81, steer, broken, glass,
-      dummy: S.dummyOn, intr: cabinIntrusion(A) };
+      dummy: S.dummyOn, occupants: occupants.filter(d => d.enabled).map(d => ({ name: d.name, scale: d.scale, ...d.compute() })), intr: cabinIntrusion(A) };
     S.onReport && S.onReport(S.report);
   }
   // ---------------- replay
@@ -164,6 +185,7 @@ export function createSim() {
     const i0 = Math.floor(R.i), i1 = Math.min(i0 + 1, rec.length - 1), f = R.i - i0, r0 = rec[i0], r1 = rec[i1];
     const lerpInto = (a, b, base) => { for (let k = 0; k < a.length; k++) XR[base * 3 + k] = a[k] + (b[k] - a[k]) * f; };
     lerpInto(r0.a, r1.a, A.base); lerpInto(r0.d, r1.d, D.ids[0]);
+    passengers.forEach((d, i) => { if (r0.others?.[i] && r1.others?.[i]) lerpInto(r0.others[i], r1.others[i], d.ids[0]); });
     A.ref = r0.refA; A.fitC0 = r0.c0a; A.crack = r0.crack; readSoft(A, 1 / 60, XR, W.v, r0.da); A.spin = r0.spin;
     if (r0.b) { lerpInto(r0.b, r1.b, B.base); B.ref = r0.refB; B.fitC0 = r0.c0b; readSoft(B, 1 / 60, XR, W.v, r0.db); }
     return { X: XR, t: r0.t + (r1.t - r0.t) * f - rec[0].t, rec: r0, i: R.i };

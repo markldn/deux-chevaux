@@ -5,7 +5,7 @@ precision highp float;precision highp int;precision highp sampler2DShadow;
 export const COMMON = `
 uniform mat4 uVP,uSh0M,uSh1M;
 uniform vec3 uCam,uSun,uSunC,uSkyZ,uSkyH,uGndC;
-uniform float uT,uFogD,uShOn;uniform vec3 uFill;
+uniform float uT,uFogD,uShOn,uPit;uniform vec3 uFill;
 uniform sampler2DShadow uSh0,uSh1;
 float hash(ivec2 p){uint h=(uint(p.x)*1597334677u)^(uint(p.y)*3812015801u);h^=h>>16;h*=2246822519u;h^=h>>13;h*=3266489917u;h^=h>>16;return float(h)*(1./4294967296.);}
 float vnoise(vec2 p){vec2 i=floor(p),f=p-i,u=f*f*f*(f*(f*6.-15.)+10.);ivec2 q=ivec2(i);
@@ -101,7 +101,7 @@ void main(){vec2 g=sign(aP.xy)*pow(abs(aP.xy),vec2(3.))*2400.;vec2 p=uC+g;float 
 export const TERR_FS = `in vec3 vP;in vec3 vN;uniform vec4 uSkid[16];
 // ground: patchwork fields, avenue, test-centre concrete, runway, camera pit lid
 void main(){vec2 p=vP.xz;float d=length(vP-uCam);vec3 N=normalize(vN);
- if(p.x>-1.3&&p.x<1.3&&p.y>-4.6&&p.y<-.6)discard; // camera pit (drawn by the pit mesh)
+ if(uPit>.5&&p.x>-1.3&&p.x<1.3&&p.y>-4.6&&p.y<-.6)discard; // only wall tests use the camera pit
  float n1=vnoise(p*.07),n2=vnoise(p*1.7),n3=vnoise(p*13.),n4=fbm(p*.011,3);
  // field cells
  vec2 cq=rot(.35)*p/vec2(130,95);ivec2 ci=ivec2(floor(cq));float ft=hash(ci+ivec2(7,3));vec2 cf=fract(cq);
@@ -141,14 +141,15 @@ void main(){vec2 p=vP.xz;float d=length(vP-uCam);vec3 N=normalize(vN);
 // ---------------------------------------------------------------- car (and every skinned/boned mesh)
 export const CAR_VS = `in vec3 aP;in vec3 aN;in vec4 aC;in vec4 aM;in vec4 aJ;in vec4 aW;in vec4 aK;
 uniform mat4 uB[24],uA[3];uniform float uExplode,uDum;uniform vec3 uHub[4];uniform highp sampler2D uNP,uNQ,uNR;
-out vec3 vW;out vec3 vN;out vec3 vR;out vec4 vC;out vec4 vM;out vec4 vK;out vec3 vL;
+out vec3 vW;out vec3 vN;out vec3 vR;out vec4 vC;out vec4 vM;out vec4 vK;out vec3 vL;out float vShattered;
 vec3 qr(vec4 q,vec3 v){vec3 t=2.*cross(q.xyz,v);return v+q.w*t+cross(q.xyz,t);}
-void main(){int b=int(aM.y+.5);vec3 p=aP,n=aN;float dm=0.;
+void main(){int b=int(aM.y+.5);vec3 p=aP,n=aN;float dm=0.;vShattered=0.;
  if(uDum<.5&&b>=5&&b<=7){mat4 A=uA[b-5];p=(A*vec4(p,1)).xyz;n=mat3(A)*n;}
  // node skinning: each vertex follows 4 lattice nodes, carried by their positions and local rotations
  if(aW.x>0.){vec3 q[4],nn[4];float dd[4];
   for(int k=0;k<4;k++){q[k]=vec3(0);nn[k]=n;dd[k]=0.;float w=aW[k];if(w<=0.)continue;int id=int(aJ[k]+.5);ivec2 c=ivec2(id%512,id/512);
-   vec4 P=texelFetch(uNP,c,0);vec4 Q=texelFetch(uNQ,c,0);vec3 R=texelFetch(uNR,c,0).xyz;q[k]=P.xyz+qr(Q,p-R);nn[k]=qr(Q,n);dd[k]=P.w;}
+   vec4 P=texelFetch(uNP,c,0);vec4 Q=texelFetch(uNQ,c,0);vec3 R=texelFetch(uNR,c,0).xyz;q[k]=P.xyz+qr(Q,p-R);nn[k]=qr(Q,n);dd[k]=P.w;
+   if(aM.x<.5&&aK.x<0.)vShattered=max(vShattered,P.w);}
   // a node that tore free must not drag the surface with it: blend only influences that agree with the consensus
   int best=0;float bs=-1.;for(int k=0;k<4;k++){if(aW[k]<=0.)continue;float s=0.;for(int j=0;j<4;j++)if(aW[j]>0.&&distance(q[k],q[j])<.4)s+=aW[j];if(s>bs){bs=s;best=k;}}
   vec3 sp=vec3(0),sn=vec3(0);float ws=0.;
@@ -160,16 +161,20 @@ void main(){int b=int(aM.y+.5);vec3 p=aP,n=aN;float dm=0.;
  vec4 w=uB[b]*vec4(p,1);vW=w.xyz;vN=mat3(uB[b])*n;vR=aP;vC=aC;vM=vec4(aM.x,aM.z,part,dm);vK=aK;
  vL=b>0&&b<5?aP-uHub[b-1]:vec3(0);
  gl_Position=uVP*w;}`;
-export const CAR_FS = `in vec3 vW;in vec3 vN;in vec3 vR;in vec4 vC;in vec4 vM;in vec4 vK;in vec3 vL;
-uniform vec3 uPaint,uPaint2;uniform float uTwo,uMarks,uLights,uBrake,uXray,uRoof,uCrack,uDirt;uniform vec3 uCrackP;
+export const CAR_FS = `in vec3 vW;in vec3 vN;in vec3 vR;in vec4 vC;in vec4 vM;in vec4 vK;in vec3 vL;in float vShattered;
+uniform vec3 uPaint,uPaint2;uniform float uTwo,uMarks,uLights,uBrake,uXray,uRoof,uCrack,uDirt,uDum;uniform vec3 uCrackP;
 float ring(vec2 p,vec2 c,float r){vec2 d=p-c;float l=length(d);if(l>r)return -1.;return (d.x*d.y>0.)==(l<r*.55)?1.:0.;}
 void main(){
  int mat=int(vM.x+.5);float ao=vM.y,dmg=vM.w;vec3 N=normalize(vN);bool ff=gl_FrontFacing;if(!ff)N=-N;
  vec3 R=vR;vec3 alb=vC.rgb;float rough=vC.a,metal=0.,cc=0.;vec3 em=vec3(0);
  float win=vK.x,seam=vK.y,canv=vK.z,s=vK.w;
+ // Torn skins cannot span separated particles as metre-long strips. Keep folds and compression.
+ if(uDum<.5&&(length(dFdx(vW))>length(dFdx(vR))*2.+.002||length(dFdy(vW))>length(dFdy(vR))*2.+.002))discard;
 #ifdef GLASS
  if(uXray>0.&&vM.z<.5){vec3 V=normalize(uCam-vW);float f=pow(1.-abs(dot(N,V)),3.);oC=vec4(vec3(.3,.75,1.)*(.08+1.6*f)*uXray,(.05+.5*f)*uXray);return;}
- if(mat!=0||win>0.)discard;
+ if(mat!=0||win>0.||vShattered>.001)discard;
+ // Reject stretched remnants along a fracture boundary; detached glass is rendered as small FX chips.
+ if(length(dFdx(vW))>length(dFdx(vR))*1.3+.001||length(dFdy(vW))>length(dFdy(vR))*1.3+.001)discard;
 #else
  if(mat==0&&win<0.)discard;
  if(uXray>0.&&vM.z<.5)discard;

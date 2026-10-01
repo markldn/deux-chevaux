@@ -39,13 +39,13 @@ export function createCar(W, body, opt = {}) {
   C.world = p => add(qrot(C.rot, p), C.pos);
   C.place = (p, yaw = 0, v = 0) => {
     C.rot = qaxis([0, 1, 0], yaw); C.pos = p.slice(); C.pos[1] += C.W.ground(p[0], p[2]); C.vel = qrot(C.rot, [0, 0, v]); C.ang = [0, 0, 0];
-    C.c = [0, 0, 0, 0]; C.cPrev = [0, 0, 0, 0]; C.mode = 'rigid'; W.awake[body] = 0; C.calm = 0;
+    C.c = [0, 0, 0, 0]; C.cPrev = [0, 0, 0, 0]; C.mode = 'rigid'; C.settled = false; W.awake[body] = 0; C.calm = 0;
     syncNodes(C, 0);
   };
   C.reset = () => { // factory fresh: rest shape, beams restored
     loc.set(restL); dmg.fill(0); for (let i = 0; i < n; i++) { q[i * 4] = 1; q[i * 4 + 1] = q[i * 4 + 2] = q[i * 4 + 3] = 0; }
     for (const js of inc) for (const j of js) { W.L0[j] = W.Lr[j]; W.alive[j] = 1; W.pl[j] = 0; }
-    C.hubD = WHEELS.map(h => h.slice()); C.lost = [0, 0, 0, 0]; C.dirty = true; C.impacts = []; C.crashT = -1; C.crack = 0; C.crackN = 0; C.crackP = null; C.wreck = false;
+    C.hubD = WHEELS.map(h => h.slice()); C.lost = [0, 0, 0, 0]; C.dirty = true; C.impacts = []; C.crashT = -1; C.crack = 0; C.crackN = 0; C.glassN = 0; C.crackP = null; C.wreck = false; C.settled = false;
   };
   C.update = (dt, t) => C.mode === 'rigid' ? rigid(C, dt, t) : soft(C, dt, t);
   C.goSoft = () => goSoft(C);
@@ -54,6 +54,11 @@ export function createCar(W, body, opt = {}) {
 // ---------------- rigid driving
 function rigid(C, dt, t) {
   if (C.frozen) return;
+  // A resting wreck must not restart its suspension or wake on the barrier it already touches.
+  if (C.settled) {
+    if (!C.wreck && (C.throttle > 0 || C.tow?.on)) C.settled = false;
+    else { for (const o of C.ext) if (o.near && o.near(C)) { goSoft(C); break; } return; }
+  }
   if (C.wreck) { C.vel = [0, 0, 0]; C.ang = [0, 0, 0]; C.rpm = 0; if (touches(C, dt)) goSoft(C); return; } // lost a wheel: it lies where it stopped
   const N = 4, h = dt / N;
   for (let s = 0; s < N; s++) rigidStep(C, h);
@@ -158,7 +163,7 @@ export function goSoft(C) {
   if (C.mode === 'soft') return;
   const W = C.W, comW = C.world(C.com);
   syncNodes(C, 1);
-  C.mode = 'soft'; W.awake[C.body] = 1; C.calm = 0; C.crashT = W.t;
+  C.mode = 'soft'; C.settled = false; W.awake[C.body] = 1; C.calm = 0; C.crashT = W.t;
   C.L.hubs.forEach((h, i) => { const ax = qrot(C.rot, [1, 0, 0]); W.aniso.set([ax[0], ax[1], ax[2] || 1e-9], h * 3); });
   C.fitQ = C.rot.slice(); C.fitC0 = null; initFit(C);
   for (const o of C.ext) o.onSoft && o.onSoft(C);
@@ -203,7 +208,14 @@ export function readSoft(C, dt, X = C.W.x, V = C.W.v, dmgSrc = null) {
   // wheels roll: ground friction only across each hub's axle (the axle turns with the hub's node frame and the steer)
   if (!dmgSrc) C.L.hubs.forEach((h, i) => { const li = h - C.base, q = [C.q[li * 4], C.q[li * 4 + 1], C.q[li * 4 + 2], C.q[li * 4 + 3]];
     const ax = C.lost[i] ? [0, 0, 0] : qrot(C.rot, qrot(q, i < 2 ? [Math.cos(C.steer), 0, -Math.sin(C.steer)] : [1, 0, 0])); W.aniso[h * 3] = ax[0]; W.aniso[h * 3 + 1] = ax[1]; W.aniso[h * 3 + 2] = C.lost[i] ? 0 : ax[2] || 1e-9; });
-  if (dmgSrc) C.dmg.set(dmgSrc); else for (let i = 0; i < n; i++) { let s = 0; for (const j of incOf(C, i)) if (W.bk[j] > 1e5 && W.bm[j] !== 1) s += W.pl[j] + (W.alive[j] ? 0 : .3); C.dmg[i] = Math.min(1, s * .6); }
+  if (dmgSrc) C.dmg.set(dmgSrc); else for (let i = 0; i < n; i++) {
+    let s = 0, shattered = false;
+    for (const j of incOf(C, i)) {
+      if (W.bm[j] === 1 && !W.alive[j]) shattered = true;
+      if (W.bk[j] > 1e5 && W.bm[j] !== 1) s += W.pl[j] + (W.alive[j] ? 0 : .3);
+    }
+    C.dmg[i] = C.L.nodes[i].cls === CLS.GLASS ? (shattered ? 1 : 0) : Math.min(1, s * .6);
+  }
   // wheels: a hub that left its arm is lost
   if (!dmgSrc) C.L.hubs.forEach((h, i) => { const d = Math.hypot(C.loc[(h - b) * 3] - WHEELS[i][0], C.loc[(h - b) * 3 + 2] - WHEELS[i][2]); if (d > .5) C.lost[i] = 1; });
   C.dirty = true;
@@ -228,6 +240,8 @@ export function goRigid(C) {
   const W = C.W;
   C.mode = 'rigid'; W.awake[C.body] = 0;
   C.vel = scl(C.vel, C.speed < 1 ? 0 : 1); C.ang = [0, 0, 0];
+  C.settled = C.speed < .4;
+  if (C.settled) { C.rpm = 0; C.speed = 0; }
   C.wreck = C.lost.some(Boolean) || qrot(C.rot, [0, 1, 0])[1] < .7; // on its side or missing a wheel: no driving on
   for (const o of C.ext) o.onRigid && o.onRigid(C);
   // the deformed shape is the new rigid shape; hubs stay where the crash left them
@@ -237,9 +251,20 @@ export function goRigid(C) {
 }
 // ---------------- render data
 export function carBones(C) {
-  const B = new Float32Array(16 * 16), A = new Float32Array(16 * 3), body = qm4(C.rot, C.pos);
+  const B = new Float32Array(17 * 16), A = new Float32Array(16 * 3), body = qm4(C.rot, C.pos);
   const I4 = qm4([1, 0, 0, 0], [0, 0, 0]);
-  for (let i = 0; i < 16; i++) B.set(body, i * 16);
+  for (let i = 0; i < 17; i++) B.set(body, i * 16);
+  // Each seat is a rigid frame carried by a patch of floor, not separately skinned pipe vertices.
+  C.L.seatMounts.forEach((ids, i) => {
+    const center = arr => ids.reduce((p, id) => add(p, scl(Array.from(arr.slice(id * 3, id * 3 + 3)), 1 / ids.length)), [0, 0, 0]);
+    const rest = center(C.restL), cur = center(C.loc), cov = new Float64Array(9);
+    for (const id of ids) {
+      const a = sub(Array.from(C.loc.slice(id * 3, id * 3 + 3)), cur), b = sub(Array.from(C.restL.slice(id * 3, id * 3 + 3)), rest);
+      for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) cov[j * 3 + k] += a[k] * b[j];
+    }
+    const q = new Float64Array([1, 0, 0, 0]); extractRotation(cov, q, 0, 10);
+    B.set(mul(body, mul(qm4(q, cur), qm4([1, 0, 0, 0], scl(rest, -1)))), (14 + i) * 16);
+  });
   const wloc = i => C.mode === 'soft' ? [C.loc[(C.L.hubs[i] - C.base) * 3], C.loc[(C.L.hubs[i] - C.base) * 3 + 1], C.loc[(C.L.hubs[i] - C.base) * 3 + 2]] : add(C.hubD[i], [0, C.c[i], 0]);
   for (let i = 0; i < 4; i++) {
     const wl = wloc(i), st = i < 2 ? C.steer : 0;
