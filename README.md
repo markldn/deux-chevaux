@@ -129,6 +129,12 @@ offset test.
 | `test/view.mjs`, `test/fps.mjs` | real-GPU screenshots and frame rate |
 | `test/audio.mjs`, `test/settle.mjs`, `test/occupants.mjs` | offline audio, resting wreck, occupant/replay and head-on approach checks |
 
+**How the packing works.** The build (`build.mjs`) bundles and minifies with esbuild, strips GLSL whitespace,
+deflates the result and appends the raw stream inside a trailing HTML comment; a ~250-byte loader fetches the
+page's own bytes and inflates them with `DecompressionStream`. No base64, no external requests — the only
+network call the page makes is to itself. `dist/dev.html` is the same build unpacked and readable, so you can
+diff it against `src/` if you like. The build fails if the packed page exceeds 65,536 bytes.
+
 Research sources: Wikipedia's 2CV article (dimensions, suspension, engine, brief), citroenet.org.uk (2CV6 data),
 automobile-catalog.com (2CV6 Spécial torque and dimensions), cats-citroen.com (the 1976 crash test figures).
 
