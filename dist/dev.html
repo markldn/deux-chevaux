@@ -426,7 +426,8 @@ void main(){
   em=vC.rgb*l*vec3(4.,3.6,3.)+vec3(0);alb=vC.rgb*.3;
   float fr=fract(length(R.xy-vec2(sign(R.x)*.52,.93))*90.);alb*=.85+.3*fr*head;}
  else if(mat==10){metal=.2;rough=.35;cc=.4;}
- else if(mat==11){rough=.45;cc=.3;if(vK.w>.5&&abs(R.x-.33)>.045){float m=ring(R.zy,vec2(-.15,1.31),.045);if(m>=0.)alb=m>.5?vec3(.9,.75,.03):vec3(.01);}}
+ else if(mat==11){bool dk=alb.r<.2;rough=dk?.75:.42;cc=dk?0.:.35;alb*=.92+.12*vnoise(R.xy*90.);
+  if(vK.w!=0.&&abs(vK.w)<1.){vec3 d=R-vK.xyz;vec2 q=vK.w>0.?d.zy:d.xy;float r=abs(vK.w),l=length(q);if(l<r&&length(d)<r*1.6){alb=(q.x*q.y>0.)==(l<r*.55)?vec3(.95,.8,.05):vec3(.01);rough=.5;cc=.3;if(l>r*.92)alb=vec3(.01);}}}
  else if(mat==12){metal=.6;rough=.6;alb=mix(vec3(.25,.24,.23),vec3(.3,.14,.06),n3(R*30.));}
  else if(mat==13){alb=vec3(.07,.07,.075)*(.9+.2*vnoise(R.xz*300.));rough=.75;}
 #ifdef GLASS
@@ -1309,6 +1310,7 @@ void main(){vec2 u=vU;
   // src/soft.js
   var G = -9.81;
   var VMAX = 45;
+  var PAD = +(typeof process !== "undefined" && process.env.PAD || 0.02);
   function World(cap = 6e3, bcap = 6e4) {
     const W2 = {
       n: 0,
@@ -1596,7 +1598,7 @@ void main(){vec2 u=vU;
           }
           const wi = w[i], wj = w[j], ws = wi + wj;
           if (!ws) continue;
-          const d = Math.sqrt(d2), pen = R2 - d, nx = dx / d, ny = dy / d, nz = dz / d, si = pen * wi / ws, sj = pen * wj / ws;
+          const d = Math.sqrt(d2), pad = (W2.flag[i] | W2.flag[j]) & 8 ? PAD : 1, pen = (R2 - d) * pad, nx = dx / d, ny = dy / d, nz = dz / d, si = pen * wi / ws, sj = pen * wj / ws;
           x[k] += nx * si;
           x[k + 1] += ny * si;
           x[k + 2] += nz * si;
@@ -1823,29 +1825,30 @@ void main(){vec2 u=vU;
   var GH = 0.15;
   var BEND = 0.6;
   function scaleYield(f) {
-    for (const k of ["SHEET", "FLOOR", "RAIL", "MOUNT", "BUMPER", "BULK", "STEER"]) {
+    for (const k of ["SHEET", "FLOOR", "RAIL", "MOUNT", "BUMPER", "BULK", "STEER", "HUBB"]) {
       MATS[k].fyc *= f;
       MATS[k].fyt *= f;
     }
   }
   var MATS = {
-    SHEET: { k: 3e6, fyc: 1500, fyt: 4500, brk: 0.45, damp: 0.6 },
-    FLOOR: { k: 6e6, fyc: 4200, fyt: 9e3, brk: 0.6, damp: 0.6 },
-    RAIL: { k: 9e6, fyc: 7e3, fyt: 14e3, brk: 0.6, damp: 0.6 },
+    SHEET: { k: 3e6, fyc: 1500, fyt: 4500, brk: 0.6, damp: 0.6 },
+    FLOOR: { k: 6e6, fyc: 4200, fyt: 9e3, brk: 0.8, damp: 0.6 },
+    RAIL: { k: 9e6, fyc: 7e3, fyt: 14e3, brk: 0.8, damp: 0.6 },
     ENG: { k: 3e7, fyc: 4e5, fyt: 4e5, brk: 9, damp: 0.8 },
     MOUNT: { k: 8e6, fyc: 9e3, fyt: 9e3, brk: 0.7, damp: 0.6 },
     GLASS: { k: 4e6, fyc: 1e6, fyt: 1e6, brk: 0.03, damp: 0.6 },
     CANVAS: { k: 6e4, fyc: 30, fyt: 3e3, brk: 0.6, damp: 0.3 },
-    BUMPER: { k: 5e6, fyc: 3e3, fyt: 6e3, brk: 0.5, damp: 0.6 },
-    BULK: { k: 6e6, fyc: 3500, fyt: 7e3, brk: 0.5, damp: 0.6 },
+    BUMPER: { k: 5e6, fyc: 3e3, fyt: 6e3, brk: 0.6, damp: 0.6 },
+    BULK: { k: 6e6, fyc: 3500, fyt: 7e3, brk: 0.7, damp: 0.6 },
     ARM: { k: 2e7, fyc: 25e3, fyt: 25e3, brk: 0.5, damp: 0.8 },
+    HUBB: { k: 8e6, fyc: 900 * (+globalThis.process?.env?.HB || 3), fyt: 1800 * (+globalThis.process?.env?.HB || 3), brk: 1.5, damp: 0.8 },
     SPRING: { k: 15e4, fyc: 1e9, fyt: 1e9, brk: 9, damp: 0.8 },
     STEER: { k: 6e6, fyc: 5e3, fyt: 9e3, brk: 0.8, damp: 0.7 }
   };
-  scaleYield(3.33 * (+globalThis.process?.env?.YS || 1));
-  var C = { SHEET: 0, FLOOR: 1, RAIL: 2, ENG: 3, GLASS: 4, CANVAS: 5, BUMPER: 6, BULK: 7, DASH: 8, WING: 9, HUB: 10, PIVOT: 11, STEER: 12 };
+  scaleYield(3.33 * (+globalThis.process?.env?.YS || 1.8));
+  var C = { SHEET: 0, FLOOR: 1, RAIL: 2, ENG: 3, GLASS: 4, CANVAS: 5, BUMPER: 6, BULK: 7, DASH: 8, WING: 9, HUB: 10, PIVOT: 11, STEER: 12, SEAT: 13, RIM: 14 };
   var CLS = C;
-  var MASSW = [1, 1.6, 2.2, 0, 1.1, 0.35, 1.6, 1.4, 1.2, 0.8, 0, 1, 0];
+  var MASSW = [1, 1.6, 2.2, 0, 1.1, 0.35, 1.6, 1.4, 1.2, 0.8, 0, 1, 0, 0, 0];
   function polyDist(pl, x, y) {
     let best = 1e9, bs = 0;
     for (let i = 1; i < pl.length; i++) {
@@ -1933,13 +1936,20 @@ void main(){vec2 u=vU;
     const piv = PIVOT.map((p) => [extra(p, C.PIVOT), extra([p[0] * 0.45, p[1], p[2]], C.PIVOT)]);
     const hubs = WHEELS.map((h) => extra(h.slice(), C.HUB));
     const sw = extra(SWHEEL.c.slice(), C.STEER), col = extra([0.33, 0.78, 0.52], C.STEER);
+    const seats = SEAT.map(([x, y, z]) => {
+      const b = z - 0.3;
+      return [[x + 0.13, 0.62, b - 0.05], [x - 0.13, 0.62, b - 0.05], [x + 0.13, 0.86, b - 0.1], [x - 0.13, 0.86, b - 0.1]].map((p) => extra(p, C.SEAT));
+    });
+    const sa = norm(SWHEEL.n), sb = norm(cross(sa, [1, 0, 0])), sc = cross(sa, sb);
+    const rim = [0, 1, 2, 3].map((k) => extra(add(SWHEEL.c, add(scl(sb, Math.cos(k * Math.PI / 2) * SWHEEL.r), scl(sc, Math.sin(k * Math.PI / 2) * SWHEEL.r))), C.RIM));
     let wsum = 0;
     for (const n of nodes) wsum += MASSW[n.cls];
     const engN = nodes.filter((n) => n.cls === C.ENG).length, rest = totalMass - 105 - 4 * 15 - 8;
     const base = W2.n;
     for (const n of nodes) {
-      const m = n.cls === C.ENG ? 105 / engN : n.cls === C.HUB ? 15 : n.cls === C.STEER ? 4 : MASSW[n.cls] / wsum * rest;
-      n.id = addNode(W2, n.p, m, n.cls === C.HUB ? 0.2925 : 0.07, body, n.cls === C.HUB ? 1 : 0.45);
+      const m = n.cls === C.ENG ? 105 / engN : n.cls === C.HUB ? 15 : n.cls === C.STEER ? 4 : n.cls === C.SEAT ? 1.5 : n.cls === C.RIM ? 0.4 : MASSW[n.cls] / wsum * rest;
+      n.id = addNode(W2, n.p, m, n.cls === C.HUB ? 0.2925 : n.cls === C.RIM ? 0.025 : 0.07, body, n.cls === C.HUB ? 1 : 0.45);
+      if (n.cls === C.RIM || n.cls === C.SEAT) W2.flag[n.id] |= 8;
       if (n.cls === C.HUB) W2.flag[n.id] |= 2;
       if (n.cls === C.HUB || n.cls === C.ENG || n.cls === C.STEER) W2.flag[n.id] |= 4;
     }
@@ -1985,6 +1995,7 @@ void main(){vec2 u=vU;
         }
       }
     }
+    const dd = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
     const near = (p, r, f = () => true) => nodes.filter((o) => o.g && f(o) && Math.hypot(o.p[0] - p[0], o.p[1] - p[1], o.p[2] - p[2]) < r);
     piv.forEach(([a, b], i) => {
       for (const q of [a, b]) for (const o of near(nodes[q].p, 0.3, (o2) => o2.cls === C.FLOOR || o2.cls === C.RAIL)) addBeam(W2, nodes[q].id, o.id, MATS.RAIL);
@@ -1992,18 +2003,26 @@ void main(){vec2 u=vU;
       const hb = nodes[hubs[i]].id;
       addBeam(W2, hb, nodes[a].id, MATS.ARM);
       addBeam(W2, hb, nodes[b].id, MATS.ARM);
-      const top = near([WHEELS[i][0] * 0.85, 0.75, WHEELS[i][2]], 0.3).sort((p, q) => q.p[1] - p.p[1])[0];
-      if (top) {
-        const j = addBeam(W2, hb, top.id, MATS.SPRING);
-        W2.L0[j] += 15 * 9.81 * 4 / MATS.SPRING.k;
-        W2.Lr[j] = W2.L0[j];
-      }
+      for (const o of near(WHEELS[i], 0.42, (o2) => o2.cls === C.RAIL || o2.cls === C.FLOOR || o2.cls === C.ENG).sort((p, q) => dd(p.p, WHEELS[i]) - dd(q.p, WHEELS[i])).slice(0, 5)) addBeam(W2, hb, o.id, MATS.HUBB);
+      for (const o of near(WHEELS[i], 0.6, (o2) => o2.cls !== C.GLASS && o2.cls !== C.CANVAS && o2.cls !== C.WING && o2.p[1] > WHEELS[i][1] + 0.2).sort((p, q) => dd(p.p, WHEELS[i]) - dd(q.p, WHEELS[i])).slice(0, 9)) addBeam(W2, hb, o.id, MATS.HUBB);
     });
     addBeam(W2, nodes[sw].id, nodes[col].id, MATS.STEER);
     for (const o of near(SWHEEL.c, 0.36, (o2) => o2.cls === C.DASH || o2.cls === C.SHEET)) addBeam(W2, nodes[sw].id, o.id, MATS.STEER);
     for (const o of near(nodes[col].p, 0.32, (o2) => o2.cls === C.BULK || o2.cls === C.DASH || o2.cls === C.FLOOR)) addBeam(W2, nodes[col].id, o.id, MATS.STEER);
     const rack = near([0.225, 0.4, 1.05], 0.2, (o) => o.cls === C.ENG)[0];
     if (rack) addBeam(W2, nodes[col].id, rack.id, { ...MATS.STEER, k: 4e6, fyc: 2500 * (+globalThis.process?.env?.RACK || 1), fyt: 9e3 });
+    const SEATB = { k: 3e6, fyc: 2500, fyt: 4e3, brk: 0.8, damp: 0.8 };
+    for (const g2 of seats) {
+      for (const a of g2) {
+        for (const b of g2) if (a < b) addBeam(W2, nodes[a].id, nodes[b].id, SEATB);
+        for (const o of near(nodes[a].p, 0.7, (o2) => o2.cls === C.FLOOR || o2.cls === C.RAIL).sort((p, q) => dd(p.p, nodes[a].p) - dd(q.p, nodes[a].p)).slice(0, 3)) addBeam(W2, nodes[a].id, o.id, SEATB);
+      }
+    }
+    rim.forEach((r, k) => {
+      addBeam(W2, nodes[r].id, nodes[sw].id, MATS.STEER);
+      addBeam(W2, nodes[r].id, nodes[rim[(k + 1) % 4]].id, MATS.STEER);
+      addBeam(W2, nodes[r].id, nodes[col].id, MATS.STEER);
+    });
     const adj = Array.from({ length: W2.n }, () => []);
     for (const j of beams) {
       adj[W2.ba[j]].push(W2.bb[j]);
@@ -2032,7 +2051,7 @@ void main(){vec2 u=vU;
         Wt[v * 4] = 1;
         continue;
       }
-      const ok = part === P_ENGINE ? (o) => o.cls === C.ENG || o.cls === C.BULK : part === P_INT ? (o) => o.cls === C.FLOOR || o.cls === C.RAIL || o.cls === C.BULK || o.cls === C.DASH : (o) => o.cls !== C.ENG || part === P_SUSP;
+      const ok = part === P_ENGINE ? (o) => o.cls === C.ENG || o.cls === C.BULK : part === P_INT ? (o) => o.cls === C.FLOOR || o.cls === C.RAIL || o.cls === C.BULK || o.cls === C.DASH || o.cls === C.SEAT : (o) => o.cls !== C.ENG || part === P_SUSP;
       const gi = Math.round((p[0] + 0.675) / GH), gj = Math.round((p[1] - 0.25) / GH), gk = Math.round((1.95 - p[2]) / GH);
       const cand = [];
       for (let R2 = 1; R2 <= 6 && cand.length < 4; R2++) {
@@ -2044,6 +2063,9 @@ void main(){vec2 u=vU;
           cand.push([d, m]);
         }
       }
+      if (part === P_INT) N.forEach((o, m) => {
+        if (!o.g && o.cls === C.SEAT) cand.push([Math.hypot(o.p[0] - p[0], o.p[1] - p[1], o.p[2] - p[2]), m]);
+      });
       cand.sort((a, b) => a[0] - b[0]);
       const use = cand.slice(0, 4);
       let s = 0;
@@ -2142,7 +2164,7 @@ void main(){vec2 u=vU;
       cz += mass[i] * loc[i * 3 + 2];
     }
     C2.M = M + (opt.payload || 0);
-    C2.com = [cx / M, cy / M + 0.05, cz / M];
+    C2.com = [cx / M, 0.5, cz / M];
     let Ix = 0, Iy = 0, Iz = 0;
     for (let i = 0; i < n; i++) {
       const x = loc[i * 3] - C2.com[0], y = loc[i * 3 + 1] - C2.com[1], z = loc[i * 3 + 2] - C2.com[2];
@@ -2190,6 +2212,7 @@ void main(){vec2 u=vU;
       C2.crack = 0;
       C2.crackN = 0;
       C2.crackP = null;
+      C2.wreck = false;
     };
     C2.update = (dt, t) => C2.mode === "rigid" ? rigid(C2, dt, t) : soft(C2, dt, t);
     C2.goSoft = () => goSoft(C2);
@@ -2197,6 +2220,13 @@ void main(){vec2 u=vU;
   }
   function rigid(C2, dt, t) {
     if (C2.frozen) return;
+    if (C2.wreck) {
+      C2.vel = [0, 0, 0];
+      C2.ang = [0, 0, 0];
+      C2.rpm = 0;
+      if (touches(C2, dt)) goSoft(C2);
+      return;
+    }
     const N = 4, h = dt / N;
     for (let s = 0; s < N; s++) rigidStep(C2, h);
     const vf = dot(C2.vel, qrot(C2.rot, [0, 0, 1])), wheelW = vf / WR;
@@ -2220,7 +2250,8 @@ void main(){vec2 u=vU;
       T = add(T, cross(sub(p, comW), f));
     };
     const sp = Math.abs(dot(C2.vel, fw));
-    C2.steer = lerp(C2.steer, C2.steerIn * 0.6 / (1 + sp * sp / 600), Math.min(1, h * 6));
+    const lock = Math.min(0.6, 21 / Math.max(sp * sp, 1));
+    C2.steer = lerp(C2.steer, C2.steerIn * lock, Math.min(1, h * 4));
     const ratio = GEARS[C2.gear] || 0, drive = C2.tow ? 0 : torque(C2.rpm) * ratio * C2.throttle / WR;
     const cs = C2.c.slice();
     for (let i = 0; i < 4; i++) {
@@ -2296,7 +2327,7 @@ void main(){vec2 u=vU;
       const p = C2.world([C2.loc[i * 3], C2.loc[i * 3 + 1], C2.loc[i * 3 + 2]]), v = add(C2.vel, cross(C2.ang, sub(p, comW)));
       const q = add(p, scl(v, dt * 1.5));
       for (const c of cols) if (c.pen && c.pen(q[0], q[1], q[2], 0.05) > 0) return true;
-      if (q[1] < W2.ground(q[0], q[2]) + 0.01 && C2.L.nodes[i].p[1] > 0.5) return true;
+      if (!C2.wreck && q[1] < W2.ground(q[0], q[2]) + 0.01 && C2.L.nodes[i].p[1] > 0.5) return true;
     }
     for (const o of C2.ext) if (o.near && o.near(C2)) return true;
     return false;
@@ -2309,6 +2340,10 @@ void main(){vec2 u=vU;
     W2.awake[C2.body] = 1;
     C2.calm = 0;
     C2.crashT = W2.t;
+    C2.L.hubs.forEach((h, i) => {
+      const ax = qrot(C2.rot, [1, 0, 0]);
+      W2.aniso.set([ax[0], ax[1], ax[2] || 1e-9], h * 3);
+    });
     C2.fitQ = C2.rot.slice();
     C2.fitC0 = null;
     initFit(C2);
@@ -2385,6 +2420,13 @@ void main(){vec2 u=vU;
     }
     prev.set(C2.loc);
     nodeFramesL(C2.loc, C2.restL, C2.adj, C2.q, 1);
+    if (!dmgSrc) C2.L.hubs.forEach((h, i) => {
+      const li = h - C2.base, q = [C2.q[li * 4], C2.q[li * 4 + 1], C2.q[li * 4 + 2], C2.q[li * 4 + 3]];
+      const ax = C2.lost[i] ? [0, 0, 0] : qrot(C2.rot, qrot(q, i < 2 ? [Math.cos(C2.steer), 0, -Math.sin(C2.steer)] : [1, 0, 0]));
+      W2.aniso[h * 3] = ax[0];
+      W2.aniso[h * 3 + 1] = ax[1];
+      W2.aniso[h * 3 + 2] = C2.lost[i] ? 0 : ax[2] || 1e-9;
+    });
     if (dmgSrc) C2.dmg.set(dmgSrc);
     else for (let i = 0; i < n; i++) {
       let s = 0;
@@ -2431,6 +2473,7 @@ void main(){vec2 u=vU;
     W2.awake[C2.body] = 0;
     C2.vel = scl(C2.vel, C2.speed < 1 ? 0 : 1);
     C2.ang = [0, 0, 0];
+    C2.wreck = C2.lost.some(Boolean) || qrot(C2.rot, [0, 1, 0])[1] < 0.7;
     for (const o of C2.ext) o.onRigid && o.onRigid(C2);
     C2.L.hubs.forEach((h, i) => {
       const k = (h - C2.base) * 3;
@@ -2467,9 +2510,9 @@ void main(){vec2 u=vU;
   // src/dummy.js
   var X = 0.33;
   var PTS = [
-    ["pelvis", [X, 0.5, -0.1], 17, 0.14],
-    ["abdomen", [X, 0.73, -0.17], 8, 0.13],
-    ["chest", [X, 0.96, -0.2], 17, 0.14],
+    ["pelvis", [X, 0.5, -0.1], 14, 0.14],
+    ["abdomen", [X, 0.73, -0.17], 5, 0.13],
+    ["chest", [X, 0.96, -0.2], 23, 0.14],
     ["shL", [X + 0.19, 1.1, -0.2], 3, 0.06],
     ["shR", [X - 0.19, 1.1, -0.2], 3, 0.06],
     ["neck", [X, 1.18, -0.19], 1.2, 0.05],
@@ -2483,10 +2526,27 @@ void main(){vec2 u=vU;
     ["haL", [X + 0.17, 1.05, 0.2], 0.6, 0.045],
     ["haR", [X - 0.17, 1.05, 0.2], 0.6, 0.045]
   ];
+  var MID = [
+    ["thL", "pelvis", "knL", 3, 0.075],
+    ["thR", "pelvis", "knR", 3, 0.075],
+    ["snL", "knL", "anL", 1.5, 0.05],
+    ["snR", "knR", "anR", 1.5, 0.05],
+    ["uaL", "shL", "elL", 0.8, 0.045],
+    ["uaR", "shR", "elR", 0.8, 0.045],
+    ["faL", "elL", "haL", 0.6, 0.04],
+    ["faR", "elR", "haR", 0.6, 0.04]
+  ];
+  for (const [n, a, b, m, r] of MID) {
+    const A2 = PTS.find((p) => p[0] === a)[1], B2 = PTS.find((p) => p[0] === b)[1];
+    PTS.push([n, A2.map((v, i) => (v + B2[i]) / 2), m, r]);
+  }
+  for (const p of PTS) if (["pelvis", "knL", "knR"].includes(p[0])) p[2] -= p[0] === "pelvis" ? 4 : 1;
   var IDX = Object.fromEntries(PTS.map((p, i) => [p[0], i]));
   var RIGID = { k: 4e6, fyc: 1e7, fyt: 1e7, brk: 9, damp: 0.9 };
   var SPINE = { k: 15e4, fyc: 1e7, fyt: 1e7, brk: 9, damp: 0.9 };
   var NECK = { k: 25e3, fyc: 1e7, fyt: 1e7, brk: 9, damp: 1 };
+  var E0 = typeof process !== "undefined" && process.env || {};
+  var NECKL = { k: +(E0.NK || 3e5), fyc: 1e7, fyt: 1e7, brk: 9, damp: 1 };
   var SEAT2 = { k: 4e4, fyc: 6e3, fyt: 2500, brk: 9, damp: 1 };
   var GRIP = { k: 2e5, fyc: 600, fyt: 450, brk: 0.04, damp: 0.8 };
   var LINKS = [
@@ -2499,7 +2559,7 @@ void main(){vec2 u=vU;
     ["chest", "neck", RIGID],
     ["shL", "neck", RIGID],
     ["shR", "neck", RIGID],
-    ["neck", "head", RIGID],
+    ["neck", "head", NECKL],
     ["chest", "head", NECK],
     ["pelvis", "knL", RIGID],
     ["pelvis", "knR", RIGID],
@@ -2510,7 +2570,8 @@ void main(){vec2 u=vU;
     ["shL", "elL", RIGID],
     ["shR", "elR", RIGID],
     ["elL", "haL", RIGID],
-    ["elR", "haR", RIGID]
+    ["elR", "haR", RIGID],
+    ...MID.flatMap(([n, a, b]) => [[n, a, RIGID], [n, b, RIGID]])
   ];
   function createDummy(W2, body, car) {
     const D2 = { W: W2, body, car, ids: [], local: PTS.map((p) => p[1].slice()), attached: true, rec: [], grip: [], metrics: null };
@@ -2536,9 +2597,10 @@ void main(){vec2 u=vU;
       return N.filter((o) => o.g && o.cls !== CLS.GLASS && o.cls !== CLS.CANVAS && dist(o.p, p) < 0.25).map((o) => o.id).sort((a, b) => (a !== id) - (b !== id));
     };
     D2.lap = addPulley(W2, cl(sill), D2.ids[IDX.pelvis], cl(buckle), 0.01, +(E.LAPK || 2e5));
-    D2.diag = addPulley(W2, pillar, [D2.ids[IDX.shL], D2.ids[IDX.chest]], cl(buckle), +(E.SLACK || 5e-3), +(E.BELTK || 15e4));
+    D2.diag = addPulley(W2, pillar, [D2.ids[IDX.shL], D2.ids[IDX.chest]], cl(buckle), +(E.SLACK || 5e-3), +(E.BELTK || 7e4));
     D2.anchors = [sill, buckle, upper];
-    W2.r[car.L.sw] = +(E.SWR || 0.05);
+    W2.r[car.L.sw] = +(E.SWR || 0.07);
+    W2.flag[car.L.sw] |= 8;
     D2.belt = (on) => {
       D2.lap.on = D2.diag.on = on ? 1 : 0;
     };
@@ -2640,27 +2702,61 @@ void main(){vec2 u=vU;
     ["haR", "elR", "haR"]
   ];
   function buildDummyMesh() {
-    const g2 = Geo(), P2 = (n) => PTS[IDX[n]][1], Y = [1, 0.78, 0.1, 0.45], K = [0.05, 0.05, 0.05, 0.55], o = (b, col = Y) => ({ mat: 11, col, bone: b, part: 5 });
-    blob(g2, P2("head"), [0.075, 0.1, 0.09], 2.2, { ...o(0), k: () => [9, 9, 9, 1] });
-    blob(g2, add(P2("head"), [0, -0.05, 0.07]), [0.04, 0.03, 0.03], 2.5, o(0));
-    tube(g2, [P2("neck"), add(P2("neck"), [0, 0.08, 0.02])], 0.04, 10, o(1, K));
-    blob(g2, add(P2("chest"), [0, 0.04, 0]), [0.19, 0.17, 0.12], 3, o(2, [0.12, 0.12, 0.13, 0.6]));
-    blob(g2, P2("abdomen"), [0.15, 0.1, 0.1], 2.6, o(3, K));
-    blob(g2, P2("pelvis"), [0.18, 0.1, 0.14], 2.6, o(4));
-    const limb = (a, b, r0, r1, bone, col = Y) => tube(g2, [P2(a), add(P2(a), scl(sub(P2(b), P2(a)), 0.5)), P2(b)], (u) => r0 + (r1 - r0) * u, 12, o(bone, col));
-    limb("pelvis", "knL", 0.085, 0.06, 5);
-    limb("pelvis", "knR", 0.085, 0.06, 6);
-    limb("knL", "anL", 0.055, 0.04, 7);
-    limb("knR", "anR", 0.055, 0.04, 8);
-    blob(g2, add(P2("anL"), [0, -0.03, 0.07]), [0.05, 0.04, 0.12], 3, o(9, K));
-    blob(g2, add(P2("anR"), [0, -0.03, 0.07]), [0.05, 0.04, 0.12], 3, o(10, K));
+    const g2 = Geo(), P2 = (n) => PTS[IDX[n]][1];
+    const VY = [0.93, 0.7, 0.1, 0.45], JK = [0.045, 0.045, 0.05, 0.7], AL = [0.62, 0.63, 0.65, 0.35], RB = [0.03, 0.03, 0.03, 0.6];
+    const o = (b, col = VY, mat = 11, k) => ({ mat, col, bone: b, part: 5, k });
+    const tgt = (c, r, side) => () => [c[0], c[1], c[2], side ? r : -r];
+    const H = P2("head"), hb = 0;
+    blob(g2, add(H, [0, 0.01, -0.012]), [0.076, 0.1, 0.094], 2.3, o(hb, VY, 11, (p) => [X + Math.sign(p[0] - X) * 0.077, H[1] + 0.012, H[2] - 0.012, 0.032]));
+    blob(g2, add(H, [0, 0.036, 0.074]), [0.056, 0.013, 0.02], 2.6, o(hb));
+    blob(g2, add(H, [0, -2e-3, 0.088]), [0.011, 0.024, 0.017], 2.4, o(hb));
+    blob(g2, add(H, [0, -0.072, 0.058]), [0.036, 0.022, 0.026], 2.6, o(hb));
+    for (const s of [1, -1]) {
+      blob(g2, add(H, [s * 0.03, 0.013, 0.082]), [0.014, 8e-3, 6e-3], 2, o(hb, [0.55, 0.4, 0.05, 0.5]));
+      blob(g2, add(H, [s * 0.077, 0, -0.01]), [0.012, 0.03, 0.02], 2.6, o(hb));
+    }
+    const N0 = P2("neck"), N1 = add(N0, [0, 0.095, 0.015]), nprof = [];
+    for (let i = 0; i <= 8; i++) {
+      const t = i / 8, r = i % 2 ? 0.034 : 0.043;
+      nprof.push([t * 0.1 - 3e-3, r], [t * 0.1 + 3e-3, r]);
+    }
+    lathe(g2, frame(N0, sub(N1, N0), [1, 0, 0]), [[-3e-3, 0], ...nprof, [0.103, 0]], 16, o(1, AL, 7));
+    for (let i = 0; i < 4; i++) lathe(g2, frame(add(N0, scl(sub(N1, N0), 0.2 + i * 0.22)), sub(N1, N0), [1, 0, 0]), [[-0.012, 0], [-0.012, 0.038], [0.012, 0.038], [0.012, 0]], 16, o(1, RB, 5));
+    const Ch = P2("chest");
+    blob(g2, add(Ch, [0, 0.02, 5e-3]), [0.19, 0.19, 0.12], 3.2, o(2, JK, 11));
+    tube(g2, [add(Ch, [0, 0.17, 0.118]), add(Ch, [0, -0.1, 0.118])], 4e-3, 5, o(2, AL, 7));
+    blob(g2, add(Ch, [0, 0.02, -0.13]), [0.07, 0.12, 0.03], 6, o(2, AL, 7));
+    for (const s of [1, -1]) {
+      blob(g2, add(P2(s > 0 ? "shL" : "shR"), [-s * 0.015, 0, 0]), [0.045, 0.04, 0.045], 3, o(2, AL, 7));
+    }
+    blob(g2, add(P2("abdomen"), [0, 0, 0.01]), [0.165, 0.13, 0.11], 3, o(3, JK, 11));
+    const Pe = P2("pelvis");
+    blob(g2, add(Pe, [0, 0.02, 0]), [0.19, 0.11, 0.15], 3, o(4, VY, 11, (p) => [X + Math.sign(p[0] - X) * 0.19, Pe[1] + 0.02, Pe[2], 0.03]));
+    const limb = (a, b, r0, r1, bone, col = VY, mat = 11) => tube(g2, [P2(a), add(P2(a), scl(sub(P2(b), P2(a)), 0.5)), P2(b)], (u) => r0 + (r1 - r0) * u, 14, o(bone, col, mat));
+    limb("pelvis", "knL", 0.095, 0.062, 5);
+    limb("pelvis", "knR", 0.095, 0.062, 6);
+    limb("knL", "anL", 0.056, 0.04, 7);
+    limb("knR", "anR", 0.056, 0.04, 8);
+    for (const [n, b] of [["knL", 5], ["knR", 6]]) {
+      const K = add(P2(n), [0, 0.01, 0.05]);
+      blob(g2, K, [0.055, 0.055, 0.035], 2.5, o(b, VY, 11, tgt([K[0], K[1], K[2] + 0.03], 0.028, 0)));
+      lathe(g2, frame(P2(n), [1, 0, 0], [0, 1, 0]), [[-0.07, 0], [-0.07, 0.045], [0.07, 0.045], [0.07, 0]], 14, o(b, AL, 7));
+    }
+    for (const [n, b] of [["anL", 9], ["anR", 10]]) {
+      blob(g2, add(P2(n), [0, -0.035, 0.075]), [0.052, 0.045, 0.135], 3.2, o(b, [0.03, 0.03, 0.03, 0.5], 5));
+      blob(g2, add(P2(n), [0, -0.075, 0.075]), [0.054, 0.01, 0.14], 4, o(b, [0.08, 0.07, 0.06, 0.9], 5));
+    }
     limb("shL", "elL", 0.05, 0.042, 11);
     limb("shR", "elR", 0.05, 0.042, 12);
-    limb("elL", "haL", 0.04, 0.035, 13);
-    limb("elR", "haR", 0.04, 0.035, 14);
-    blob(g2, P2("haL"), [0.035, 0.045, 0.05], 2.5, o(15));
-    blob(g2, P2("haR"), [0.035, 0.045, 0.05], 2.5, o(16));
-    for (const n of ["knL", "knR", "elL", "elR"]) blob(g2, P2(n), [0.05, 0.05, 0.05], 2, o(SEGS.findIndex((s) => s[2] === n), K));
+    limb("elL", "haL", 0.04, 0.033, 13);
+    limb("elR", "haR", 0.04, 0.033, 14);
+    for (const [n, b] of [["elL", 11], ["elR", 12]]) lathe(g2, frame(P2(n), [1, 0, 0], [0, 1, 0]), [[-0.055, 0], [-0.055, 0.04], [0.055, 0.04], [0.055, 0]], 12, o(b, AL, 7));
+    for (const [n, b, s] of [["haL", 15, 1], ["haR", 16, -1]]) {
+      const Hd = P2(n);
+      blob(g2, Hd, [0.03, 0.045, 0.05], 2.6, o(b));
+      blob(g2, add(Hd, [0, 0.035, 0.05]), [0.026, 0.03, 0.02], 2.6, o(b));
+      blob(g2, add(Hd, [-s * 0.03, -0.01, 0.035]), [0.012, 0.03, 0.012], 2.4, o(b));
+    }
     const BR = beltRest(P2);
     BELT.forEach(([a, b], i) => tube(g2, [BR[a], add(BR[a], scl(sub(BR[b], BR[a]), 0.5)), BR[b]], 0.014, 6, { mat: 6, col: [0.62, 0.58, 0.48, 0.8], bone: 17 + i, part: 5 }));
     for (let i = 0; i < g2.M.length / 4; i++) g2.M[i * 4 + 2] = 0.8;
@@ -2886,7 +2982,7 @@ void main(){vec2 u=vU;
       for (const c of S2.cars) if (!c.frozen) c.update(sdt, S2.t);
       if (D2.attached && S2.dummyOn) D2.follow();
       else if (!S2.dummyOn) park();
-      if (S2.phase === "free" && A2.mode === "soft") {
+      if (S2.phase === "free" && A2.mode === "soft" && len(A2.vel) > 2.5) {
         S2.phase = "crash";
         S2.recOn = true;
         S2.rec = [];
@@ -3279,6 +3375,8 @@ void main(){vec2 u=vU;
         enter() {
           S2.stopReplay();
           ensure(TESTS[0], 40);
+          view2.paint = 0;
+          F.marks = 1;
         },
         frame(u, dt) {
           card = smooth(0, 0.1, u) * smooth(1, 0.9, u);
@@ -3290,6 +3388,8 @@ void main(){vec2 u=vU;
         d: 22,
         tod: 0.58,
         enter() {
+          view2.paint = 0;
+          F.marks = 1;
           api2.labRun(TESTS[2], 64);
         },
         frame(u, dt) {
@@ -3857,6 +3957,7 @@ void main(){vec2 u=vU;
     }
   };
   var driveCrash = 0;
+  var msgT = 0;
   function driveStart() {
     S.start({ id: "drive", name: "Free drive", set: "drive" }, 0, { runup: 0, dummy: false });
     S.stopReplay();
@@ -3891,14 +3992,17 @@ void main(){vec2 u=vU;
         A.place([p[0], 0, p[2]], Math.atan2(f[0], f[2]), 0);
         S.stopReplay();
       }
-      if (e.code === "KeyP" && S.rec.length > 3) {
+      if (e.code === "KeyP") {
         if (S.replay) S.stopReplay();
-        else {
+        else if (S.rec.length > 10) {
+          S.recOn = false;
+          if (S.phase === "crash") S.phase = "free";
           const w = replayWindow();
           S.startReplay(0.08, w[0]);
           S.replay.end = w[1];
-          S.replay.loop = 1;
-        }
+          orbit.d = 6;
+          orbit.pitch = 0.3;
+        } else msgT = 2;
       }
       if (e.code === "KeyT") view.tod = view.tod > 0.9 ? 0.25 : view.tod + 0.15;
     }
@@ -4040,10 +4144,13 @@ void main(){vec2 u=vU;
       if (S.replay) {
         rp = S.replayFrame(dt);
         if (S.replay.i >= S.replay.end) S.replay.i = replayWindow()[0];
-        cap = "REPLAY \xB7 slow motion \xD712 \xB7 P to return";
+        cap = "REPLAY \xB7 slow motion \xD712 \xB7 drag to orbit \xB7 P to return";
       } else S.advance(dt);
-      cam = driveCamera(dt);
-      if (driveCrash && S.report) {
+      cam = S.replay ? camFor("orbit", dt) : driveCamera(dt);
+      if (msgT > 0) {
+        msgT -= dt;
+        cap = "No crash recorded yet \u2014 hit something first.";
+      } else if (driveCrash && S.report && !S.replay) {
         cap = `Crash at ${Math.round(S.report.g)} g peak \u2014 P for a slow-motion replay, F to fix the car`;
       }
     } else if (mode === "lab") {
@@ -4070,6 +4177,7 @@ void main(){vec2 u=vU;
       post.ap = 0.25;
       post.focus = len(sub(cam.pos, cam.tgt));
     }
+    if (window.__ct.cam) cam = Object.assign({ fov: 0.6, near: 0.02, far: 5e3 }, window.__ct.cam(A));
     $("cap").textContent = cap;
     $("cap").style.opacity = cap ? 1 : 0;
     const L = light(view.tod);

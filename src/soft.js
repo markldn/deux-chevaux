@@ -3,7 +3,7 @@
 // crash's energy goes. Compression yield < tension yield (thin sheet buckles), densification stops flow below
 // ~30 % length, and tension past the break strain tears the beam. Nodes collide with analytic colliders (ground,
 // boxes, crushable barrier faces, poles) and with nodes of other bodies (spatial hash).
-export const G = -9.81, VMAX = 45;
+export const G = -9.81, VMAX = 45, PAD = +((typeof process !== 'undefined' && process.env.PAD) || .02);
 export function World(cap = 6000, bcap = 60000) {
   const W = {
     n: 0, nb: 0, t: 0,
@@ -164,7 +164,7 @@ function collide(W, h, s) {
         if (d2 >= R * R || d2 < 1e-12) continue;
         if (same) { const rx = W.rest[k] - W.rest[jk], ry = W.rest[k + 1] - W.rest[jk + 1], rz = W.rest[k + 2] - W.rest[jk + 2]; if (rx * rx + ry * ry + rz * rz < .09) continue; }
         const wi = w[i], wj = w[j], ws = wi + wj; if (!ws) continue;
-        const d = Math.sqrt(d2), pen = R - d, nx = dx / d, ny = dy / d, nz = dz / d, si = pen * wi / ws, sj = pen * wj / ws;
+        const d = Math.sqrt(d2), pad = (W.flag[i] | W.flag[j]) & 8 ? PAD : 1, pen = (R - d) * pad, nx = dx / d, ny = dy / d, nz = dz / d, si = pen * wi / ws, sj = pen * wj / ws; // padded parts (wheel rim, dash) give
         x[k] += nx * si; x[k + 1] += ny * si; x[k + 2] += nz * si; x[jk] -= nx * sj; x[jk + 1] -= ny * sj; x[jk + 2] -= nz * sj;
         addC(i, j, nx, ny, nz, pen, Math.min(W.mu[i], W.mu[j]));
       }

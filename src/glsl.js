@@ -222,7 +222,8 @@ void main(){
   em=vC.rgb*l*vec3(4.,3.6,3.)+vec3(0);alb=vC.rgb*.3;
   float fr=fract(length(R.xy-vec2(sign(R.x)*.52,.93))*90.);alb*=.85+.3*fr*head;}
  else if(mat==10){metal=.2;rough=.35;cc=.4;}
- else if(mat==11){rough=.45;cc=.3;if(vK.w>.5&&abs(R.x-.33)>.045){float m=ring(R.zy,vec2(-.15,1.31),.045);if(m>=0.)alb=m>.5?vec3(.9,.75,.03):vec3(.01);}}
+ else if(mat==11){bool dk=alb.r<.2;rough=dk?.75:.42;cc=dk?0.:.35;alb*=.92+.12*vnoise(R.xy*90.);
+  if(vK.w!=0.&&abs(vK.w)<1.){vec3 d=R-vK.xyz;vec2 q=vK.w>0.?d.zy:d.xy;float r=abs(vK.w),l=length(q);if(l<r&&length(d)<r*1.6){alb=(q.x*q.y>0.)==(l<r*.55)?vec3(.95,.8,.05):vec3(.01);rough=.5;cc=.3;if(l>r*.92)alb=vec3(.01);}}}
  else if(mat==12){metal=.6;rough=.6;alb=mix(vec3(.25,.24,.23),vec3(.3,.14,.06),n3(R*30.));}
  else if(mat==13){alb=vec3(.07,.07,.075)*(.9+.2*vnoise(R.xz*300.));rough=.75;}
 #ifdef GLASS

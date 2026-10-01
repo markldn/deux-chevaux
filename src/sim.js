@@ -111,7 +111,8 @@ export function createSim() {
     }
     for (const c of S.cars) if (!c.frozen) c.update(sdt, S.t);
     if (D.attached && S.dummyOn) D.follow(); else if (!S.dummyOn) park();
-    if (S.phase === 'free' && A.mode === 'soft') { S.phase = 'crash'; S.recOn = true; S.rec = []; S.lastRec = -1; S.tRel = S.t; S.pk = 0; }
+    // a new recording only for a real impact: a wreck resting against a tree must not wipe the last crash
+    if (S.phase === 'free' && A.mode === 'soft' && len(A.vel) > 2.5) { S.phase = 'crash'; S.recOn = true; S.rec = []; S.lastRec = -1; S.tRel = S.t; S.pk = 0; }
     if (S.phase === 'crash') {
       const calm = A.mode === 'rigid' || (W.t - S.rec[0]?.t > 2.5);
       if (S.recOn && (calm || S.rec.length > 1400)) { S.recOn = false; finish(); }

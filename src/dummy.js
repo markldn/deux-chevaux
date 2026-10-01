@@ -10,21 +10,29 @@ import { CLS } from './lattice.js';
 const X = .33;
 // [name, local pos, mass, radius]
 const PTS = [
-  ['pelvis', [X, .5, -.1], 17, .14], ['abdomen', [X, .73, -.17], 8, .13], ['chest', [X, .96, -.2], 17, .14],
+  ['pelvis', [X, .5, -.1], 14, .14], ['abdomen', [X, .73, -.17], 5, .13], ['chest', [X, .96, -.2], 23, .14],
   ['shL', [X + .19, 1.1, -.2], 3, .06], ['shR', [X - .19, 1.1, -.2], 3, .06], ['neck', [X, 1.18, -.19], 1.2, .05], ['head', [X, 1.31, -.15], 4.5, .1],
   ['knL', [X + .1, .6, .3], 5, .07], ['knR', [X - .1, .6, .3], 5, .07], ['anL', [X + .12, .37, .5], 3, .055], ['anR', [X - .12, .37, .5], 3, .055],
   ['elL', [X + .24, .94, .02], 2, .05], ['elR', [X - .24, .94, .02], 2, .05], ['haL', [X + .17, 1.05, .2], .6, .045], ['haR', [X - .17, 1.05, .2], .6, .045],
 ];
+// mid-limb collision particles: without them a thigh or forearm slides through the dash and the rim between its joints
+const MID = [['thL', 'pelvis', 'knL', 3, .075], ['thR', 'pelvis', 'knR', 3, .075], ['snL', 'knL', 'anL', 1.5, .05], ['snR', 'knR', 'anR', 1.5, .05],
+  ['uaL', 'shL', 'elL', .8, .045], ['uaR', 'shR', 'elR', .8, .045], ['faL', 'elL', 'haL', .6, .04], ['faR', 'elR', 'haR', .6, .04]];
+for (const [n, a, b, m, r] of MID) { const A = PTS.find(p => p[0] === a)[1], B = PTS.find(p => p[0] === b)[1]; PTS.push([n, A.map((v, i) => (v + B[i]) / 2), m, r]); }
+for (const p of PTS) if (['pelvis', 'knL', 'knR'].includes(p[0])) p[2] -= p[0] === 'pelvis' ? 4 : 1;
 const IDX = Object.fromEntries(PTS.map((p, i) => [p[0], i]));
 const RIGID = { k: 4e6, fyc: 1e7, fyt: 1e7, brk: 9, damp: .9 };
 const SPINE = { k: 1.5e5, fyc: 1e7, fyt: 1e7, brk: 9, damp: .9 };
 const NECK = { k: 2.5e4, fyc: 1e7, fyt: 1e7, brk: 9, damp: 1 };
+const E0 = (typeof process !== 'undefined' && process.env) || {};
+const NECKL = { k: +(E0.NK || 3e5), fyc: 1e7, fyt: 1e7, brk: 9, damp: 1 }; // the rubber-and-aluminium neck column
 const SEAT = { k: 4e4, fyc: 6000, fyt: 2500, brk: 9, damp: 1 };
 const GRIP = { k: 2e5, fyc: 600, fyt: 450, brk: .04, damp: .8 };
 const LINKS = [['pelvis', 'abdomen', SPINE], ['abdomen', 'chest', SPINE], ['pelvis', 'chest', SPINE], ['chest', 'shL', RIGID], ['chest', 'shR', RIGID], ['shL', 'shR', RIGID],
-  ['chest', 'neck', RIGID], ['shL', 'neck', RIGID], ['shR', 'neck', RIGID], ['neck', 'head', RIGID], ['chest', 'head', NECK],
+  ['chest', 'neck', RIGID], ['shL', 'neck', RIGID], ['shR', 'neck', RIGID], ['neck', 'head', NECKL], ['chest', 'head', NECK],
   ['pelvis', 'knL', RIGID], ['pelvis', 'knR', RIGID], ['knL', 'anL', RIGID], ['knR', 'anR', RIGID], ['abdomen', 'knL', SPINE], ['abdomen', 'knR', SPINE],
-  ['shL', 'elL', RIGID], ['shR', 'elR', RIGID], ['elL', 'haL', RIGID], ['elR', 'haR', RIGID]];
+  ['shL', 'elL', RIGID], ['shR', 'elR', RIGID], ['elL', 'haL', RIGID], ['elR', 'haR', RIGID],
+  ...MID.flatMap(([n, a, b]) => [[n, a, RIGID], [n, b, RIGID]])];
 
 export function createDummy(W, body, car) {
   const D = { W, body, car, ids: [], local: PTS.map(p => p[1].slice()), attached: true, rec: [], grip: [], metrics: null };
@@ -46,9 +54,9 @@ export function createDummy(W, body, car) {
   const pillar = [upper, ...N.filter(o => o.g && o.p[0] > .6 && Math.abs(o.p[2] + .35) < .1 && o.p[1] > .3 && o.p[1] < 1.42 && o.cls !== CLS.GLASS && o.id !== upper).map(o => o.id)];
   const cl = id => { const p = [W.x[id * 3], W.x[id * 3 + 1], W.x[id * 3 + 2]]; return N.filter(o => o.g && o.cls !== CLS.GLASS && o.cls !== CLS.CANVAS && dist(o.p, p) < .25).map(o => o.id).sort((a, b) => (a !== id) - (b !== id)); };
   D.lap = addPulley(W, cl(sill), D.ids[IDX.pelvis], cl(buckle), .01, +(E.LAPK || 2e5));
-  D.diag = addPulley(W, pillar, [D.ids[IDX.shL], D.ids[IDX.chest]], cl(buckle), +(E.SLACK || .005), +(E.BELTK || 1.5e5));
+  D.diag = addPulley(W, pillar, [D.ids[IDX.shL], D.ids[IDX.chest]], cl(buckle), +(E.SLACK || .005), +(E.BELTK || 7e4));
   D.anchors = [sill, buckle, upper];
-  W.r[car.L.sw] = +(E.SWR || .05);
+  W.r[car.L.sw] = +(E.SWR || .07); W.flag[car.L.sw] |= 8;
   D.belt = on => { D.lap.on = D.diag.on = on ? 1 : 0; };
   // ride along rigidly while the car is rigid
   D.follow = () => {
@@ -99,22 +107,50 @@ export const SEGS = [['head', 'neck', 'head'], ['neck', 'chest', 'neck'], ['ches
   ['pelvis', 'knL', 'knL'], ['pelvis', 'knR', 'knR'], ['knL', 'anL', 'anL'], ['knR', 'anR', 'anR'], ['anL', 'knL', 'anL'], ['anR', 'knR', 'anR'],
   ['shL', 'elL', 'elL'], ['shR', 'elR', 'elR'], ['elL', 'haL', 'haL'], ['elR', 'haR', 'haR'], ['haL', 'elL', 'haL'], ['haR', 'elR', 'haR']];
 export function buildDummyMesh() {
-  const g = Geo(), P = n => PTS[IDX[n]][1], Y = [1, .78, .1, .45], K = [.05, .05, .05, .55], o = (b, col = Y) => ({ mat: 11, col, bone: b, part: 5 });
-  // head with the quadrant targets painted by the shader (mat 11 + K.w = 1)
-  blob(g, P('head'), [.075, .1, .09], 2.2, { ...o(0), k: () => [9, 9, 9, 1] });
-  blob(g, add(P('head'), [0, -.05, .07]), [.04, .03, .03], 2.5, o(0));                         // chin
-  tube(g, [P('neck'), add(P('neck'), [0, .08, .02])], .04, 10, o(1, K));
-  blob(g, add(P('chest'), [0, .04, 0]), [.19, .17, .12], 3, o(2, [.12, .12, .13, .6]));              // jacket
-  blob(g, P('abdomen'), [.15, .1, .1], 2.6, o(3, K));
-  blob(g, P('pelvis'), [.18, .1, .14], 2.6, o(4));
-  const limb = (a, b, r0, r1, bone, col = Y) => tube(g, [P(a), add(P(a), scl(sub(P(b), P(a)), .5)), P(b)], u => r0 + (r1 - r0) * u, 12, o(bone, col));
-  limb('pelvis', 'knL', .085, .06, 5); limb('pelvis', 'knR', .085, .06, 6);
-  limb('knL', 'anL', .055, .04, 7); limb('knR', 'anR', .055, .04, 8);
-  blob(g, add(P('anL'), [0, -.03, .07]), [.05, .04, .12], 3, o(9, K)); blob(g, add(P('anR'), [0, -.03, .07]), [.05, .04, .12], 3, o(10, K));
+  const g = Geo(), P = n => PTS[IDX[n]][1];
+  const VY = [.93, .7, .1, .45], JK = [.045, .045, .05, .7], AL = [.62, .63, .65, .35], RB = [.03, .03, .03, .6];
+  const o = (b, col = VY, mat = 11, k) => ({ mat, col, bone: b, part: 5, k });
+  const tgt = (c, r, side) => () => [c[0], c[1], c[2], side ? r : -r]; // quadrant target: centre, radius (sign picks the facing)
+  const H = P('head'), hb = 0;
+  // head: one-piece skull under a vinyl skin, moulded face, ears, quadrant targets on both sides
+  blob(g, add(H, [0, .01, -.012]), [.076, .1, .094], 2.3, o(hb, VY, 11, p => [X + Math.sign(p[0] - X) * .077, H[1] + .012, H[2] - .012, .032]));
+  blob(g, add(H, [0, .036, .074]), [.056, .013, .02], 2.6, o(hb));                 // brow
+  blob(g, add(H, [0, -.002, .088]), [.011, .024, .017], 2.4, o(hb));               // nose
+  blob(g, add(H, [0, -.072, .058]), [.036, .022, .026], 2.6, o(hb));               // chin
+  for (const s of [1, -1]) {
+    blob(g, add(H, [s * .03, .013, .082]), [.014, .008, .006], 2, o(hb, [.55, .4, .05, .5]));   // eye hollows
+    blob(g, add(H, [s * .077, 0, -.01]), [.012, .03, .02], 2.6, o(hb));                         // ears
+  }
+  // neck: rubber discs between aluminium plates, round a central cable
+  const N0 = P('neck'), N1 = add(N0, [0, .095, .015]), nprof = [];
+  for (let i = 0; i <= 8; i++) { const t = i / 8, r = i % 2 ? .034 : .043; nprof.push([t * .1 - .003, r], [t * .1 + .003, r]); }
+  lathe(g, frame(N0, sub(N1, N0), [1, 0, 0]), [[-.003, 0], ...nprof, [.103, 0]], 16, o(1, AL, 7));
+  for (let i = 0; i < 4; i++) lathe(g, frame(add(N0, scl(sub(N1, N0), .2 + i * .22)), sub(N1, N0), [1, 0, 0]), [[-.012, 0], [-.012, .038], [.012, .038], [.012, 0]], 16, o(1, RB, 5));
+  // thorax: black chest jacket with its zip, aluminium shoulder clevises, spine box behind
+  const Ch = P('chest');
+  blob(g, add(Ch, [0, .02, .005]), [.19, .19, .12], 3.2, o(2, JK, 11));
+  tube(g, [add(Ch, [0, .17, .118]), add(Ch, [0, -.1, .118])], .004, 5, o(2, AL, 7));
+  blob(g, add(Ch, [0, .02, -.13]), [.07, .12, .03], 6, o(2, AL, 7));
+  for (const s of [1, -1]) { blob(g, add(P(s > 0 ? 'shL' : 'shR'), [-s * .015, 0, 0]), [.045, .04, .045], 3, o(2, AL, 7)); }
+  blob(g, add(P('abdomen'), [0, 0, .01]), [.165, .13, .11], 3, o(3, JK, 11));
+  // pelvis: vinyl flesh, H-point targets on the hips
+  const Pe = P('pelvis');
+  blob(g, add(Pe, [0, .02, 0]), [.19, .11, .15], 3, o(4, VY, 11, p => [X + Math.sign(p[0] - X) * .19, Pe[1] + .02, Pe[2], .03]));
+  const limb = (a, b, r0, r1, bone, col = VY, mat = 11) => tube(g, [P(a), add(P(a), scl(sub(P(b), P(a)), .5)), P(b)], u => r0 + (r1 - r0) * u, 14, o(bone, col, mat));
+  limb('pelvis', 'knL', .095, .062, 5); limb('pelvis', 'knR', .095, .062, 6);
+  limb('knL', 'anL', .056, .04, 7); limb('knR', 'anR', .056, .04, 8);
+  for (const [n, b] of [['knL', 5], ['knR', 6]]) { const K = add(P(n), [0, .01, .05]); blob(g, K, [.055, .055, .035], 2.5, o(b, VY, 11, tgt([K[0], K[1], K[2] + .03], .028, 0))); lathe(g, frame(P(n), [1, 0, 0], [0, 1, 0]), [[-.07, 0], [-.07, .045], [.07, .045], [.07, 0]], 14, o(b, AL, 7)); }
+  // shoes
+  for (const [n, b] of [['anL', 9], ['anR', 10]]) { blob(g, add(P(n), [0, -.035, .075]), [.052, .045, .135], 3.2, o(b, [.03, .03, .03, .5], 5)); blob(g, add(P(n), [0, -.075, .075]), [.054, .01, .14], 4, o(b, [.08, .07, .06, .9], 5)); }
   limb('shL', 'elL', .05, .042, 11); limb('shR', 'elR', .05, .042, 12);
-  limb('elL', 'haL', .04, .035, 13); limb('elR', 'haR', .04, .035, 14);
-  blob(g, P('haL'), [.035, .045, .05], 2.5, o(15)); blob(g, P('haR'), [.035, .045, .05], 2.5, o(16));
-  for (const n of ['knL', 'knR', 'elL', 'elR']) blob(g, P(n), [.05, .05, .05], 2, o(SEGS.findIndex(s => s[2] === n), K));
+  limb('elL', 'haL', .04, .033, 13); limb('elR', 'haR', .04, .033, 14);
+  for (const [n, b] of [['elL', 11], ['elR', 12]]) lathe(g, frame(P(n), [1, 0, 0], [0, 1, 0]), [[-.055, 0], [-.055, .04], [.055, .04], [.055, 0]], 12, o(b, AL, 7));
+  // moulded hands: palm, curled fingers, thumb
+  for (const [n, b, s] of [['haL', 15, 1], ['haR', 16, -1]]) {
+    const Hd = P(n); blob(g, Hd, [.03, .045, .05], 2.6, o(b));
+    blob(g, add(Hd, [0, .035, .05]), [.026, .03, .02], 2.6, o(b));
+    blob(g, add(Hd, [-s * .03, -.01, .035]), [.012, .03, .012], 2.4, o(b));
+  }
   // the belt: five straps on stretchable bones 17-21
   const BR = beltRest(P);
   BELT.forEach(([a, b], i) => tube(g, [BR[a], add(BR[a], scl(sub(BR[b], BR[a]), .5)), BR[b]], .014, 6, { mat: 6, col: [.62, .58, .48, .8], bone: 17 + i, part: 5 }));

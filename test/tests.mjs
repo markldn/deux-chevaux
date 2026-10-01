@@ -2,7 +2,7 @@
 import { createSim, TESTS } from '../src/sim.js';
 const S = createSim();
 for (const T of TESTS.filter(t => !process.argv[2] || t.id === process.argv[2])) {
-  const t0 = Date.now(); S.start(T, T.kmh, { runup: T.id === 'roll' ? 20 : 0 });
+  const t0 = Date.now(); S.start(T, T.kmh, { runup: T.id === 'roll' ? 20 : 0, dummy: !process.env.NODUMMY });
   let f = 0; while (S.phase !== 'done' && f < 60 * 12) { S.advance(1 / 60); f++; }
   const r = S.report;
   const p = S.A.world(S.A.com);

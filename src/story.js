@@ -52,9 +52,9 @@ export function createFilm(api) {
       frame(u, dt) { const cams = ['side', 'pit', 'onboard', 'top'], ci = Math.min(3, Math.floor(u * 4)), uu = u * 4 - ci;
         if (S.replay) { S.replay.i = lerp(this.w[0], this.w[1] - 40, uu); rp = S.replayFrame(0); }
         F.hs = 1; return { cam: api.camFor(cams[ci], dt), cap: ['Slowed 13 times. The engine sits ahead of the axle: it reaches the wall first.', 'From the camera pit: the platform stays straight while the nose folds.', 'The belt holds; his head still meets the wheel.', 'Every frame is the simulation re-run of the real test, not an animation.'][ci] }; } },
-    { d: 14, tod: .5, enter() { S.stopReplay(); ensure(TESTS[0], 40); },
+    { d: 14, tod: .5, enter() { S.stopReplay(); ensure(TESTS[0], 40); view.paint = 0; F.marks = 1; },
       frame(u, dt) { card = smooth(0, .1, u) * smooth(1, .9, u); F.hs = 0; return { cam: api.camFor('orbit', dt), cap: '' }; } },
-    { d: 22, tod: .58, enter() { api.labRun(TESTS[2], 64); },
+    { d: 22, tod: .58, enter() { view.paint = 0; F.marks = 1; api.labRun(TESTS[2], 64); },
       frame(u, dt) { F.hs = 1; if (!S.replay && S.phase !== 'done') { S.advance(dt); return { cam: api.camFor('front', dt), cap: 'Today\'s offset test runs at 64 km/h into crushable aluminium honeycomb.' }; }
         if (!S.replay) { const w = api.replayWindow(); this.w = w; this.u0 = u; S.startReplay(.07, w[0]); }
         const uu = clamp((u - this.u0) / (1 - this.u0), 0, 1), ci = uu < .5 ? 0 : 1; S.replay.i = lerp(this.w[0], this.w[1] - 30, (uu * 2) % 1); rp = S.replayFrame(0);

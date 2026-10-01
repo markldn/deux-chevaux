@@ -127,7 +127,7 @@ function showReport() {
 }
 S.onReport = () => { if (mode === 'lab') { labState = 'replay'; setTimeout(() => { if (labState === 'replay' && !seq) labReplay(); }, 700); } if (mode === 'drive') { driveCrash = 1; S.phase = 'free'; } };
 // ---------------- drive
-let driveCrash = 0;
+let driveCrash = 0, msgT = 0;
 function driveStart() {
   S.start({ id: 'drive', name: 'Free drive', set: 'drive' }, 0, { runup: 0, dummy: false });
   S.stopReplay(); S.recOn = false; A.mode = 'rigid'; W.awake[1] = W.awake[2] = 0; S.phase = 'free'; S.setBarrier('drive');
@@ -145,7 +145,7 @@ function onKey(e) {
   if (mode === 'drive') {
     if (e.code === 'KeyC') driveCam = (driveCam + 1) % 3;
     if (e.code === 'KeyF') { const p = A.world(A.com), f = qrot(A.rot, [0, 0, 1]); A.reset(); A.place([p[0], 0, p[2]], Math.atan2(f[0], f[2]), 0); S.stopReplay(); }
-    if (e.code === 'KeyP' && S.rec.length > 3) { if (S.replay) S.stopReplay(); else { const w = replayWindow(); S.startReplay(.08, w[0]); S.replay.end = w[1]; S.replay.loop = 1; } }
+    if (e.code === 'KeyP') { if (S.replay) S.stopReplay(); else if (S.rec.length > 10) { S.recOn = false; if (S.phase === 'crash') S.phase = 'free'; const w = replayWindow(); S.startReplay(.08, w[0]); S.replay.end = w[1]; orbit.d = 6; orbit.pitch = .3; } else msgT = 2; }
     if (e.code === 'KeyT') view.tod = view.tod > .9 ? .25 : view.tod + .15;
   }
   if (mode === 'film' && film) film.key(e);
@@ -207,10 +207,11 @@ function loop(now) {
     if (A.gear === 0) { A.brake = A.throttle; A.throttle = br; if (A.brake && vf > -.3) A.gear = 2; } else A.brake = br;
     A.steerIn = (keys.KeyA || keys.ArrowLeft ? 1 : 0) - (keys.KeyD || keys.ArrowRight ? 1 : 0); A.hand = keys.Space ? 1 : 0;
     S.nearby(A.world(A.com));
-    if (S.replay) { rp = S.replayFrame(dt); if (S.replay.i >= S.replay.end) S.replay.i = replayWindow()[0]; cap = 'REPLAY · slow motion ×12 · P to return'; }
+    if (S.replay) { rp = S.replayFrame(dt); if (S.replay.i >= S.replay.end) S.replay.i = replayWindow()[0]; cap = 'REPLAY · slow motion ×12 · drag to orbit · P to return'; }
     else S.advance(dt);
-    cam = driveCamera(dt);
-    if (driveCrash && S.report) { cap = `Crash at ${Math.round(S.report.g)} g peak — P for a slow-motion replay, F to fix the car`; }
+    cam = S.replay ? camFor('orbit', dt) : driveCamera(dt);
+    if (msgT > 0) { msgT -= dt; cap = 'No crash recorded yet — hit something first.'; }
+    else if (driveCrash && S.report && !S.replay) { cap = `Crash at ${Math.round(S.report.g)} g peak — P for a slow-motion replay, F to fix the car`; }
   } else if (mode === 'lab') {
     if (S.replay) { rp = S.replayFrame(dt); if (S.replay.i >= (S.replay.end ?? 1e9) || S.replay.done) nextReplay(); }
     else { S.ts = $('slow').checked && S.phase === 'crash' ? .1 : 1; S.advance(dt); }
@@ -222,6 +223,7 @@ function loop(now) {
   } else { // menu: slow orbit around a parked 2CV at golden hour
     orbit.yaw += dt * .05; cam = camFor('orbit', dt); cam.pos[1] = Math.max(cam.pos[1], .4); post.ap = .25; post.focus = len(sub(cam.pos, cam.tgt));
   }
+  if (window.__ct.cam) cam = Object.assign({ fov: .6, near: .02, far: 5000 }, window.__ct.cam(A));
   $('cap').textContent = cap; $('cap').style.opacity = cap ? 1 : 0;
   // ---- render
   const L = light(view.tod); L.uCam = cam.pos; L.uFill = cam.pos[1] < 0 ? [2.2, 2.1, 1.9] : [0, 0, 0];

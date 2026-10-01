@@ -1,33 +1,35 @@
 // The 2CV's structure as a node/beam lattice on a 15 cm grid, classified from the same section functions that
 // build the body mesh: thin shell, platform + side members, engine/gearbox block, bulkhead, dash rail, bumpers,
 // glass (brittle), canvas roof (tension only), wheel hubs on hinged arms. Plus the vertex -> node skin binding.
-import { section, ZF, ZR, FW, RW, archF, winSdf, canvasSdf, WHEELS, PIVOT, SWHEEL, FZ, P_ENGINE, P_INT, P_WHEEL, P_SUSP } from './car.js';
+import { section, ZF, ZR, FW, RW, archF, winSdf, canvasSdf, WHEELS, PIVOT, SWHEEL, SEAT, FZ, P_ENGINE, P_INT, P_WHEEL, P_SUSP } from './car.js';
 import { addNode, addBeam } from './soft.js';
+import { add, scl, norm, cross } from './math.js';
 
 export const GH = .15;
 // calibrated: 1976 rigid wall 40 km/h -> ~34 g, ~400 mm static crush (measured 33 g, 375 mm)
 export let BEND = .6; export const setBend = b => BEND = b;
 // one knob for the whole structure's strength, set by test/calib.mjs against the 1976 test
-export function scaleYield(f) { for (const k of ['SHEET', 'FLOOR', 'RAIL', 'MOUNT', 'BUMPER', 'BULK', 'STEER']) { MATS[k].fyc *= f; MATS[k].fyt *= f; } }
+export function scaleYield(f) { for (const k of ['SHEET', 'FLOOR', 'RAIL', 'MOUNT', 'BUMPER', 'BULK', 'STEER', 'HUBB']) { MATS[k].fyc *= f; MATS[k].fyt *= f; } }
 // materials: k (N/m), compression / tension yield (N), break strain, damping
 export const MATS = {
-  SHEET: { k: 3e6, fyc: 1500, fyt: 4500, brk: .45, damp: .6 },
-  FLOOR: { k: 6e6, fyc: 4200, fyt: 9000, brk: .6, damp: .6 },
-  RAIL: { k: 9e6, fyc: 7000, fyt: 14000, brk: .6, damp: .6 },
+  SHEET: { k: 3e6, fyc: 1500, fyt: 4500, brk: .6, damp: .6 },
+  FLOOR: { k: 6e6, fyc: 4200, fyt: 9000, brk: .8, damp: .6 },
+  RAIL: { k: 9e6, fyc: 7000, fyt: 14000, brk: .8, damp: .6 },
   ENG: { k: 3e7, fyc: 4e5, fyt: 4e5, brk: 9, damp: .8 },
   MOUNT: { k: 8e6, fyc: 9000, fyt: 9000, brk: .7, damp: .6 },
   GLASS: { k: 4e6, fyc: 1e6, fyt: 1e6, brk: .03, damp: .6 },
   CANVAS: { k: 6e4, fyc: 30, fyt: 3000, brk: .6, damp: .3 },
-  BUMPER: { k: 5e6, fyc: 3000, fyt: 6000, brk: .5, damp: .6 },
-  BULK: { k: 6e6, fyc: 3500, fyt: 7000, brk: .5, damp: .6 },
+  BUMPER: { k: 5e6, fyc: 3000, fyt: 6000, brk: .6, damp: .6 },
+  BULK: { k: 6e6, fyc: 3500, fyt: 7000, brk: .7, damp: .6 },
   ARM: { k: 2e7, fyc: 25000, fyt: 25000, brk: .5, damp: .8 },
+  HUBB: { k: 8e6, fyc: 900 * (+(globalThis.process?.env?.HB) || 3), fyt: 1800 * (+(globalThis.process?.env?.HB) || 3), brk: 1.5, damp: .8 },
   SPRING: { k: 1.5e5, fyc: 1e9, fyt: 1e9, brk: 9, damp: .8 },
   STEER: { k: 6e6, fyc: 5000, fyt: 9000, brk: .8, damp: .7 },
 };
-scaleYield(3.33 * (+(globalThis.process?.env?.YS) || 1));
-const C = { SHEET: 0, FLOOR: 1, RAIL: 2, ENG: 3, GLASS: 4, CANVAS: 5, BUMPER: 6, BULK: 7, DASH: 8, WING: 9, HUB: 10, PIVOT: 11, STEER: 12 };
+scaleYield(3.33 * (+(globalThis.process?.env?.YS) || 1.8));
+const C = { SHEET: 0, FLOOR: 1, RAIL: 2, ENG: 3, GLASS: 4, CANVAS: 5, BUMPER: 6, BULK: 7, DASH: 8, WING: 9, HUB: 10, PIVOT: 11, STEER: 12, SEAT: 13, RIM: 14 };
 export const CLS = C;
-const MASSW = [1, 1.6, 2.2, 0, 1.1, .35, 1.6, 1.4, 1.2, .8, 0, 1, 0];
+const MASSW = [1, 1.6, 2.2, 0, 1.1, .35, 1.6, 1.4, 1.2, .8, 0, 1, 0, 0, 0];
 
 // distance from (x,y) to an open polyline [[x,y,s]...], also returning s of the closest point
 function polyDist(pl, x, y) {
@@ -93,13 +95,18 @@ export function buildLattice(W, body, totalMass = 600) {
   const piv = PIVOT.map(p => [extra(p, C.PIVOT), extra([p[0] * .45, p[1], p[2]], C.PIVOT)]);
   const hubs = WHEELS.map(h => extra(h.slice(), C.HUB));
   const sw = extra(SWHEEL.c.slice(), C.STEER), col = extra([.33, .78, .52], C.STEER);
+  // interior collision structure: seat-back frames (the dummy rebounds into them) and the steering-wheel rim
+  const seats = SEAT.map(([x, y, z]) => { const b = z - .3; return [[x + .13, .62, b - .05], [x - .13, .62, b - .05], [x + .13, .86, b - .1], [x - .13, .86, b - .1]].map(p => extra(p, C.SEAT)); });
+  const sa = norm(SWHEEL.n), sb = norm(cross(sa, [1, 0, 0])), sc = cross(sa, sb);
+  const rim = [0, 1, 2, 3].map(k => extra(add(SWHEEL.c, add(scl(sb, Math.cos(k * Math.PI / 2) * SWHEEL.r), scl(sc, Math.sin(k * Math.PI / 2) * SWHEEL.r))), C.RIM));
   // mass
   let wsum = 0; for (const n of nodes) wsum += MASSW[n.cls];
   const engN = nodes.filter(n => n.cls === C.ENG).length, rest = totalMass - 105 - 4 * 15 - 8;
   const base = W.n;
   for (const n of nodes) {
-    const m = n.cls === C.ENG ? 105 / engN : n.cls === C.HUB ? 15 : n.cls === C.STEER ? 4 : MASSW[n.cls] / wsum * rest;
-    n.id = addNode(W, n.p, m, n.cls === C.HUB ? .2925 : .07, body, n.cls === C.HUB ? 1.0 : .45);
+    const m = n.cls === C.ENG ? 105 / engN : n.cls === C.HUB ? 15 : n.cls === C.STEER ? 4 : n.cls === C.SEAT ? 1.5 : n.cls === C.RIM ? .4 : MASSW[n.cls] / wsum * rest;
+    n.id = addNode(W, n.p, m, n.cls === C.HUB ? .2925 : n.cls === C.RIM ? .025 : .07, body, n.cls === C.HUB ? 1.0 : .45);
+    if (n.cls === C.RIM || n.cls === C.SEAT) W.flag[n.id] |= 8;
     if (n.cls === C.HUB) W.flag[n.id] |= 2;
     if (n.cls === C.HUB || n.cls === C.ENG || n.cls === C.STEER) W.flag[n.id] |= 4;
   }
@@ -131,6 +138,7 @@ export function buildLattice(W, body, totalMass = 600) {
       { const B = { ...MATS[M], k: MATS[M].k * .5, fyc: MATS[M].fyc * BEND, fyt: MATS[M].fyt * BEND }; beams.push(zoned(W, addBeam(W, n.id, o.id, B, 2), B)); }
     }
   }
+  const dd = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   const near = (p, r, f = () => true) => nodes.filter(o => o.g && f(o) && Math.hypot(o.p[0] - p[0], o.p[1] - p[1], o.p[2] - p[2]) < r);
   // pivots welded to the platform, hubs hinged on them, a preloaded spring to the body above each wheel
   piv.forEach(([a, b], i) => {
@@ -138,8 +146,10 @@ export function buildLattice(W, body, totalMass = 600) {
     addBeam(W, nodes[a].id, nodes[b].id, MATS.ARM);
     const hb = nodes[hubs[i]].id;
     addBeam(W, hb, nodes[a].id, MATS.ARM); addBeam(W, hb, nodes[b].id, MATS.ARM);
-    const top = near([WHEELS[i][0] * .85, .75, WHEELS[i][2]], .3).sort((p, q) => q.p[1] - p.p[1])[0];
-    if (top) { const j = addBeam(W, hb, top.id, MATS.SPRING); W.L0[j] += 15 * 9.81 * 4 / MATS.SPRING.k; W.Lr[j] = W.L0[j]; }
+    // brace the hub to the platform: in the soft model the arm is a stiff (but yieldable) bracket, so a wheel
+    // stays where the suspension had it unless a crash bends it
+    for (const o of near(WHEELS[i], .42, o => o.cls === C.RAIL || o.cls === C.FLOOR || o.cls === C.ENG).sort((p, q) => dd(p.p, WHEELS[i]) - dd(q.p, WHEELS[i])).slice(0, 5)) addBeam(W, hb, o.id, MATS.HUBB);
+    for (const o of near(WHEELS[i], .6, o => o.cls !== C.GLASS && o.cls !== C.CANVAS && o.cls !== C.WING && o.p[1] > WHEELS[i][1] + .2).sort((p, q) => dd(p.p, WHEELS[i]) - dd(q.p, WHEELS[i])).slice(0, 9)) addBeam(W, hb, o.id, MATS.HUBB);
   });
   // steering wheel on its column, column on the bulkhead and dash rail
   addBeam(W, nodes[sw].id, nodes[col].id, MATS.STEER);
@@ -148,6 +158,11 @@ export function buildLattice(W, body, totalMass = 600) {
   // the column shaft runs down to the rack in the front axle cross-tube: front crush pushes it back
   const rack = near([.225, .4, 1.05], .2, o => o.cls === C.ENG)[0];
   if (rack) addBeam(W, nodes[col].id, rack.id, { ...MATS.STEER, k: 4e6, fyc: 2500 * (+(globalThis.process?.env?.RACK) || 1), fyt: 9000 });
+  // seat frames on the platform, rim on the hub
+  const SEATB = { k: 3e6, fyc: 2500, fyt: 4000, brk: .8, damp: .8 };
+  for (const g of seats) { for (const a of g) { for (const b of g) if (a < b) addBeam(W, nodes[a].id, nodes[b].id, SEATB);
+    for (const o of near(nodes[a].p, .7, o => o.cls === C.FLOOR || o.cls === C.RAIL).sort((p, q) => dd(p.p, nodes[a].p) - dd(q.p, nodes[a].p)).slice(0, 3)) addBeam(W, nodes[a].id, o.id, SEATB); } }
+  rim.forEach((r, k) => { addBeam(W, nodes[r].id, nodes[sw].id, MATS.STEER); addBeam(W, nodes[r].id, nodes[rim[(k + 1) % 4]].id, MATS.STEER); addBeam(W, nodes[r].id, nodes[col].id, MATS.STEER); });
   // adjacency for node frames
   const adj = Array.from({ length: W.n }, () => []);
   for (const j of beams) { adj[W.ba[j]].push(W.bb[j]); adj[W.bb[j]].push(W.ba[j]); }
@@ -164,7 +179,7 @@ export function bindSkin(g, L) {
     if ((bone >= 1 && bone <= 4) || bone >= 8) continue;
     const p = [g.P[v * 3], g.P[v * 3 + 1], g.P[v * 3 + 2]];
     if (bone === 5) { J[v * 4] = local(N.findIndex(o => o.cls === C.STEER)); Wt[v * 4] = 1; continue; }
-    const ok = part === P_ENGINE ? o => o.cls === C.ENG || o.cls === C.BULK : part === P_INT ? o => o.cls === C.FLOOR || o.cls === C.RAIL || o.cls === C.BULK || o.cls === C.DASH : o => o.cls !== C.ENG || part === P_SUSP;
+    const ok = part === P_ENGINE ? o => o.cls === C.ENG || o.cls === C.BULK : part === P_INT ? o => o.cls === C.FLOOR || o.cls === C.RAIL || o.cls === C.BULK || o.cls === C.DASH || o.cls === C.SEAT : o => o.cls !== C.ENG || part === P_SUSP;
     const gi = Math.round((p[0] + .675) / GH), gj = Math.round((p[1] - .25) / GH), gk = Math.round((1.95 - p[2]) / GH);
     const cand = [];
     for (let R = 1; R <= 6 && cand.length < 4; R++) {
@@ -174,6 +189,7 @@ export function bindSkin(g, L) {
         const q = N[m].p, d = Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]); cand.push([d, m]);
       }
     }
+    if (part === P_INT) N.forEach((o, m) => { if (!o.g && o.cls === C.SEAT) cand.push([Math.hypot(o.p[0] - p[0], o.p[1] - p[1], o.p[2] - p[2]), m]); });
     cand.sort((a, b) => a[0] - b[0]);
     const use = cand.slice(0, 4); let s = 0;
     const d0 = use.length ? use[0][0] : 0;

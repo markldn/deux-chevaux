@@ -3,7 +3,7 @@
 import { World, step, boxCollider, setActive } from '../src/soft.js';
 import { buildLattice, CLS, scaleYield, setBend, setCab } from '../src/lattice.js';
 if (process.env.CAB) setCab(+process.env.CAB);
-if (process.env.YS) scaleYield(+process.env.YS); if (process.env.BEND) setBend(+process.env.BEND);
+if (process.env.BEND) setBend(+process.env.BEND); // YS is read by lattice.js itself
 const kmh = +(process.argv[2] || 40), SUB = +(process.argv[3] || 17), v0 = kmh / 3.6;
 const W = World();
 const t0 = Date.now();
@@ -24,7 +24,7 @@ let vPrev = avg(cabin, 2, W.v), aF = 0, peak = 0, tPeak = 0, maxDyn = 0, tStop =
 const dt = 1 / 60 / SUB * SUB; // one call per 1/60 s
 const pulse = [];
 const tt = Date.now();
-for (let f = 0; f < 60 * 1.2; f++) {
+for (let f = 0; f < 60 * (+process.env.T || 1.2); f++) {
   // sample the pulse at the substep rate by stepping one substep at a time
   for (let s = 0; s < SUB; s++) {
     step(W, 1 / 60 / SUB, 1);

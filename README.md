@@ -35,24 +35,26 @@ lever coming out of the dashboard, single-spoke wheel, pedals. Seven period pain
   densifies, stretched metal tears. Small-step XPBD at 1,020 Hz. When the car comes to rest the deformed shape
   becomes its new rigid shape, so crashes accumulate. The mesh follows the lattice on the GPU (each vertex rides
   4 nodes and their local rotations), and plastic strain drives creased, paint-flaked metal in the shader.
-- *The dummy* — a 78 kg Hybrid-III-like occupant as 17 particles, a 3-point static belt modelled as two pulley
+- *The dummy* — a 78 kg Hybrid III 50th-percentile male (vinyl skull with moulded face, segmented rubber/aluminium
+  neck, chest jacket, aluminium joint hardware, quadrant targets on head, hips and knees) as 23 particles, a 3-point static belt modelled as two pulley
   paths anchored on the B-pillar, sill and tunnel, hands on the wheel until the load tears them off. HIC15, 3 ms
-  head and chest acceleration and belt load are measured the way a lab measures them.
+  head and chest acceleration and belt load are measured the way a lab measures them. Seat backs and the
+  steering-wheel rim are collision structure, so he rebounds into the seat and hits the rim, not through them.
 
 **Calibration.** A German magazine crash-tested a 2CV in 1976: rigid wall, 40 km/h, static belts. The lattice
 strength was set against that test, and the lab re-runs it live:
 
 | 1976, 40 km/h | measured | simulated |
 |---|---|---|
-| car peak deceleration | 33 g | 39 g |
-| static crush | 375 mm | 431 mm |
-| HIC15 | 340 | 376 |
-| head (3 ms) | 85 g | 82 g |
-| chest (3 ms) | 23 g | 31 g |
-| shoulder-belt load | 676 kgf | 622 kgf |
+| car peak deceleration | 33 g | 32 g |
+| static crush | 375 mm | 465 mm |
+| HIC15 | 340 | 331 |
+| head (3 ms) | 85 g | 64 g |
+| chest (3 ms) | 23 g | 30 g |
+| shoulder-belt load | 676 kgf | 685 kgf |
 
-Like the real car, the front folds and the cabin barely deforms. The chest reading stays high; the gap is shown
-in the app rather than tuned away.
+Like the real car, the front folds and the cabin barely deforms. Crush runs ~25 % long and the head reads low;
+the gaps are shown in the app rather than tuned away.
 
 ![sim vs 1976](docs/04-sim-vs-1976.jpg)
 
