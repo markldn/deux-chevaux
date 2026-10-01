@@ -35,7 +35,7 @@ export function createCar(W, body, opt = {}) {
   let Ix = 0, Iy = 0, Iz = 0;
   for (let i = 0; i < n; i++) { const x = loc[i * 3] - C.com[0], y = loc[i * 3 + 1] - C.com[1], z = loc[i * 3 + 2] - C.com[2]; Ix += mass[i] * (y * y + z * z); Iy += mass[i] * (x * x + z * z); Iz += mass[i] * (x * x + y * y); }
   const kI = C.M / M; C.I = [Ix * kI, Iy * kI, Iz * kI];
-  C.F0 = C.M * 9.81 / 4;
+  { const f = (C.com[2] - WHEELS[2][2]) / (WHEELS[0][2] - WHEELS[2][2]); C.F0s = [f, f, 1 - f, 1 - f].map(k => C.M * 9.81 * k / 2); }
   C.world = p => add(qrot(C.rot, p), C.pos);
   C.place = (p, yaw = 0, v = 0) => {
     C.rot = qaxis([0, 1, 0], yaw); C.pos = p.slice(); C.pos[1] += C.W.ground(p[0], p[2]); C.vel = qrot(C.rot, [0, 0, v]); C.ang = [0, 0, 0];
@@ -45,7 +45,7 @@ export function createCar(W, body, opt = {}) {
   C.reset = () => { // factory fresh: rest shape, beams restored
     loc.set(restL); dmg.fill(0); for (let i = 0; i < n; i++) { q[i * 4] = 1; q[i * 4 + 1] = q[i * 4 + 2] = q[i * 4 + 3] = 0; }
     for (const js of inc) for (const j of js) { W.L0[j] = W.Lr[j]; W.alive[j] = 1; W.pl[j] = 0; }
-    C.hubD = WHEELS.map(h => h.slice()); C.lost = [0, 0, 0, 0]; C.dirty = true; C.impacts = []; C.crashT = -1;
+    C.hubD = WHEELS.map(h => h.slice()); C.lost = [0, 0, 0, 0]; C.dirty = true; C.impacts = []; C.crashT = -1; C.crack = 0; C.crackN = 0; C.crackP = null;
   };
   C.update = (dt, t) => C.mode === 'rigid' ? rigid(C, dt, t) : soft(C, dt, t);
   C.goSoft = () => goSoft(C);
@@ -93,12 +93,12 @@ function rigidStep(C, h) {
     C.cPrev[i] = C.c[i]; C.c[i] = cs[i];
     if (!C.contact[i]) { C.load[i] = 0; continue; }
     const cv = (C.c[i] - C.cPrev[i]) / h;
-    let Fs = C.F0 + KC * (C.c[i] + C.c[pair]) + KA * C.c[i] + DAMP * cv;
+    let Fs = C.F0s[i] + KC * (C.c[i] + C.c[pair]) + KA * C.c[i] + DAMP * cv;
     if (C.c[i] > BUMP) Fs += 9e4 * (C.c[i] - BUMP) + 3000 * Math.max(cv, 0);
     Fs = Math.max(Fs, 0); C.load[i] = Fs;
     const Pd = C.world(C.hubD[i]), cp = add(Pd, scl(up, C.c[i] - WR));
     const gn = C.W.groundN(cp[0], cp[2]);
-    force(scl(up, Fs), cp);
+    force(scl(gn, Fs * Math.max(dot(up, gn), .2)), cp);
     // tyre
     const st = i < 2 ? C.steer : 0, wf = norm(add(scl(fw, Math.cos(st)), scl(side, Math.sin(st)))), ws = cross(gn, wf);
     const vp = add(C.vel, cross(C.ang, sub(cp, comW)));

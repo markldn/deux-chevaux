@@ -117,7 +117,7 @@ export function buildDummyMesh() {
   for (const n of ['knL', 'knR', 'elL', 'elR']) blob(g, P(n), [.05, .05, .05], 2, o(SEGS.findIndex(s => s[2] === n), K));
   // the belt: five straps on stretchable bones 17-21
   const BR = beltRest(P);
-  BELT.forEach(([a, b], i) => tube(g, [BR[a], add(BR[a], scl(sub(BR[b], BR[a]), .5)), BR[b]], .014, 6, { mat: 5, col: [.16, .16, .17, .6], bone: 17 + i, part: 5 }));
+  BELT.forEach(([a, b], i) => tube(g, [BR[a], add(BR[a], scl(sub(BR[b], BR[a]), .5)), BR[b]], .014, 6, { mat: 6, col: [.62, .58, .48, .8], bone: 17 + i, part: 5 }));
   for (let i = 0; i < g.M.length / 4; i++) g.M[i * 4 + 2] = .8;
   return { g, J: new Float32Array(g.P.length / 3 * 4), Wt: new Float32Array(g.P.length / 3 * 4) };
 }

@@ -31,7 +31,11 @@ const view = { paint: 0, paintB: 5, xray: 0, roof: 0, marks: 1, explode: 0, tod:
 W.onBreak = j => {
   if (S.replay) return;
   const a = W.ba[j], b = W.bb[j], p = [0, 1, 2].map(k => (W.x[a * 3 + k] + W.x[b * 3 + k]) / 2), v = [0, 1, 2].map(k => W.v[a * 3 + k]);
-  if (W.bm[j] === 1) { for (let i = 0; i < 3; i++) FX.spawn(W.t, p, v, 0, [.8, .9, .95]); }
+  if (W.bm[j] === 1) {
+    for (let i = 0; i < 3; i++) FX.spawn(W.t, p, v, 0, [.8, .9, .95]);
+    for (const C of [A, B]) { const ia = a - C.base, ib = b - C.base; if (ia < 0 || ia >= C.n) continue;
+      const r = [0, 1, 2].map(k => (C.restL[ia * 3 + k] + C.restL[ib * 3 + k]) / 2); if (r[2] > .3 && r[2] < .7 && r[1] > 1) { C.crackN = (C.crackN || 0) + 1; if (!C.crackP) C.crackP = r; C.crack = Math.min(1, C.crackN / 20); } }
+  }
   else if (Math.random() < .3) FX.spawn(W.t, p, v, 1, PAINTS[view.paint][1]);
 };
 // ---------------- input
@@ -155,7 +159,7 @@ function camFor(name, dt) {
   const C = { fov: .62, near: .05, far: 5000, tgt: at };
   switch (name) {
     case 'side': C.pos = add(at, side ? [6.5, .4, -1] : [-7.5, .35, .2]); C.fov = .5; break;
-    case 'front': C.pos = add(at, side ? [3.5, 1.5, -4.5] : [-3.4, 1.4, 3.6]); C.fov = .7; break;
+    case 'front': C.pos = add(at, side ? [3.5, 1.5, -4.5] : [-3.9, 1.3, 1.1]); C.fov = .72; break;
     case 'top': C.pos = add(at, [0, 9, .01]); C.up = [0, 0, 1]; C.fov = .55; break;
     case 'pit': C.pos = [0, -1.0, -2.4]; C.tgt = [0, .6, -1.4]; C.fov = 1.35; break;
     case 'onboard': C.pos = A.world([-.42, 1.17, .45]); C.tgt = A.world([.33, .95, -.05]); C.up = qrot(A.rot, [0, 1, 0]); C.fov = 1.15; break;
@@ -183,7 +187,7 @@ window.__ct = { S, A, D, view, enter, seek: t => film && film.seek(t), get mode(
 function carUnits(C, paint) {
   const { B: Bn, A: An } = carBones(C), p = PAINTS[paint];
   return { car: C, mesh: carM, u: { uB: Bn, uA: An, uHub: WHEELS.flat(), uPaint: p[1], uPaint2: p[2] || [.02, .02, .02], uTwo: p[2] ? 1 : 0, uMarks: mode === 'lab' || film?.marks ? view.marks : 0,
-    uLights: view.lights, uBrake: C.brake, uDirt: .35, uRoof: view.roof, uExplode: view.explode, uXray: view.xray, uDum: 0, uCrack: C.crack || 0, uCrackP: [0, 1.2, .5] } };
+    uLights: view.lights, uBrake: C.brake, uDirt: .35, uRoof: view.roof, uExplode: view.explode, uXray: view.xray, uDum: 0, uCrack: C.crack || 0, uCrackP: C.crackP || [0, 1.2, .5] } };
 }
 function size() { const d = Math.min(devicePixelRatio || 1, 1.5); cv.width = Math.round(innerWidth * d); cv.height = Math.round(innerHeight * d); ov.width = cv.width; ov.height = cv.height; }
 addEventListener('resize', size); size();
@@ -220,7 +224,7 @@ function loop(now) {
   }
   $('cap').textContent = cap; $('cap').style.opacity = cap ? 1 : 0;
   // ---- render
-  const L = light(view.tod); L.uCam = cam.pos;
+  const L = light(view.tod); L.uCam = cam.pos; L.uFill = cam.pos[1] < 0 ? [2.2, 2.1, 1.9] : [0, 0, 0];
   const cars = [carUnits(A, view.paint)];
   if (S.useB) cars.push(carUnits(B, view.paintB));
   const dShow = S.dummyOn && (mode === 'lab' || mode === 'film');

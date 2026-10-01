@@ -227,6 +227,12 @@ export function boxCollider(c, e, yaw = 0, o = {}) {
       if (cx < 0 || cy < 0 || cx >= C.cnx || cy >= C.cny || lz > e[2]) return;
       cell = cx + cy * C.cnx; const F = -e[2] + C.cd[cell];
       let d = lz - F + ri; if (d <= 0) return;
+      // only nodes that arrived through the front face crush it; anything else is pushed out sideways
+      const pk = W.p, plz = (pk[k] - C.c[0]) * az[0] + (pk[k + 2] - C.c[2]) * az[2];
+      if (plz > F + ri + .03) { const sx = e[0] + ri - Math.abs(lx), sy = e[1] + ri - Math.abs(ly);
+        if (sx < sy) { const sg = Math.sign(lx); x[k] += ax[0] * sx * sg; x[k + 2] += ax[2] * sx * sg; addC(i, -1, ax[0] * sg, 0, ax[2] * sg, sx, C.mu); }
+        else { x[k + 1] += sy * Math.sign(ly); addC(i, -1, 0, Math.sign(ly), 0, sy, C.mu); }
+        return; }
       const m = 1 / W.w[i], h = W._h || 1e-3, maxPush = o.crush.stress * o.crush.cell * o.crush.cell * h * h / m / (o.crush.share || 1);
       if (C.cd[cell] < o.crush.depth) { const push = Math.min(d, maxPush); C.cd[cell] = Math.min(o.crush.depth, C.cd[cell] + d - push); d = push; }
       const wx = -az[0], wz = -az[2]; x[k] += wx * d; x[k + 2] += wz * d; C.force += d / W.w[i]; addC(i, -1, wx, 0, wz, d, C.mu); return;

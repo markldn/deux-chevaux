@@ -123,7 +123,7 @@ export function createSim() {
     const ids = [], X = [];
     const pack = (b, n) => W.x.slice(b * 3, (b + n) * 3);
     S.rec.push({ t: W.t, a: pack(A.base, A.n), b: S.useB ? pack(B.base, B.n) : null, d: pack(D.ids[0], D.ids.length), da: A.dmg.slice(), db: S.useB ? B.dmg.slice() : null,
-      spin: A.spin.slice(), pulse: S.lastPulse || 0, head: D.fh || 0, chest: D.fc || 0, belt: D.diag.f, refA: A.ref, refB: B.ref, c0a: A.fitC0, c0b: B.fitC0 });
+      spin: A.spin.slice(), pulse: S.lastPulse || 0, head: D.fh || 0, chest: D.fc || 0, belt: D.diag.f, crack: A.crack || 0, refA: A.ref, refB: B.ref, c0a: A.fitC0, c0b: B.fitC0 });
   }
   // cabin deceleration (g), filtered
   let pv = null, pf = 0, pt = 0;
@@ -163,7 +163,7 @@ export function createSim() {
     const i0 = Math.floor(R.i), i1 = Math.min(i0 + 1, rec.length - 1), f = R.i - i0, r0 = rec[i0], r1 = rec[i1];
     const lerpInto = (a, b, base) => { for (let k = 0; k < a.length; k++) XR[base * 3 + k] = a[k] + (b[k] - a[k]) * f; };
     lerpInto(r0.a, r1.a, A.base); lerpInto(r0.d, r1.d, D.ids[0]);
-    A.ref = r0.refA; A.fitC0 = r0.c0a; readSoft(A, 1 / 60, XR, W.v, r0.da); A.spin = r0.spin;
+    A.ref = r0.refA; A.fitC0 = r0.c0a; A.crack = r0.crack; readSoft(A, 1 / 60, XR, W.v, r0.da); A.spin = r0.spin;
     if (r0.b) { lerpInto(r0.b, r1.b, B.base); B.ref = r0.refB; B.fitC0 = r0.c0b; readSoft(B, 1 / 60, XR, W.v, r0.db); }
     return { X: XR, t: r0.t + (r1.t - r0.t) * f - rec[0].t, rec: r0, i: R.i };
   };

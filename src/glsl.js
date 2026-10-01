@@ -5,7 +5,7 @@ precision highp float;precision highp int;precision highp sampler2DShadow;
 export const COMMON = `
 uniform mat4 uVP,uSh0M,uSh1M;
 uniform vec3 uCam,uSun,uSunC,uSkyZ,uSkyH,uGndC;
-uniform float uT,uFogD,uShOn;
+uniform float uT,uFogD,uShOn;uniform vec3 uFill;
 uniform sampler2DShadow uSh0,uSh1;
 float hash(ivec2 p){uint h=(uint(p.x)*1597334677u)^(uint(p.y)*3812015801u);h^=h>>16;h*=2246822519u;h^=h>>13;h*=3266489917u;h^=h>>16;return float(h)*(1./4294967296.);}
 float vnoise(vec2 p){vec2 i=floor(p),f=p-i,u=f*f*f*(f*(f*6.-15.)+10.);ivec2 q=ivec2(i);
@@ -76,7 +76,7 @@ vec3 shade(vec3 P,vec3 N,vec3 alb,float rough,float metal,float ao,float cc,vec3
  vec3 amb=mix(uGndC*.6,mix(uSkyH,uSkyZ,.55),N.y*.5+.5)*ao;
  col+=dif*3.14159*amb*.9+env(R,rough)*Fv*occ;
  if(cc>0.){float fc=.04+.96*pow(1.-nv,5.);col=col*(1.-fc*cc)+cc*fc*env(R,.02)*occ+cc*.25*ggx(nh,.03)*nl*sh*uSunC*fc*4.;}
- col+=em;
+ col+=em+alb*uFill*max(-N.y,0.)*(1.-metal*.5)+uFill*env(R,rough)*Fv*max(-R.y,0.)*.5;
  fog(col,P);return min(col,vec3(48.));
 #endif
 }
@@ -209,9 +209,10 @@ void main(){
   if(r>.282){float zz=fract(a*30./3.14159+(ax>.02?.25:0.)*sign(vL.x));float g=step(abs(ax-.022),.004)+step(.88,zz)*step(ax,.048);alb*=1.-g*.6;N=normalize(N+vec3(0,1,0)*0.);rough=.9;}
   else if(r>.22&&r<.25)alb*=1.+.25*step(.6,fract(r*300.));}
  else if(mat==4){alb=vec3(.035);rough=.92;}
+ else if(mat==6&&vC.r>.5){alb=vC.rgb*(.85+.15*vnoise(R.xy*300.));rough=.9;}
  else if(mat==6){float st=step(.5,fract(R.x*14.));alb=mix(vec3(.28,.25,.21),vec3(.17,.16,.15),st)*(.85+.3*vnoise(R.xz*400.));rough=.95;}
  else if(mat==7){metal=.75;rough=.42+.2*n3(R*80.);alb=vec3(.58,.58,.56)*(.85+.2*n3(R*30.));}
- else if(mat==8){rough=.75;alb*=.8+.4*n3(R*20.);alb=mix(alb,vec3(.22,.1,.05),smoothstep(.65,.85,n3(R*7.))*.6);}
+ else if(mat==8){rough=.75;alb*=.85+.3*n3(R*20.);alb=mix(alb,vec3(.16,.09,.05),smoothstep(.7,.9,n3(R*7.))*.3);}
  else if(mat==9){metal=0.;rough=.05;cc=1.;
   float head=step(1.5,R.z);float tail=step(R.z,-1.7)*step(.62,R.y);
   float l=head*uLights*(1.+3.*smoothstep(.05,.0,length(R.xy-vec2(sign(R.x)*.52,.93))))+tail*(uLights*.4+uBrake*2.5)+step(abs(R.z-.43),.05)*.4;
