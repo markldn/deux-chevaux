@@ -17,7 +17,7 @@ export const P_BODY = 0, P_CHASSIS = 1, P_ENGINE = 2, P_SUSP = 3, P_WHEEL = 4, P
 
 // ---- body shell: one loft of cross-sections. z -> [yTop, yBot, hwBot, hwTop, squareness]
 const SEC = table([
-  [1.81, .77, .47, .38, .33, 7], [1.70, .835, .46, .42, .36, 7], [1.40, .89, .45, .45, .40, 7], [1.00, .965, .45, .50, .46, 7],
+  [1.81, .77, .40, .38, .33, 7], [1.70, .835, .40, .42, .36, 7], [1.40, .89, .42, .45, .40, 7], [1.00, .965, .45, .50, .46, 7],
   [.72, 1.02, .42, .58, .55, 6], [.62, 1.04, .32, .66, .60, 5.5], [.55, 1.16, .30, .68, .61, 5], [.45, 1.33, .30, .69, .615, 5],
   [.36, 1.455, .30, .69, .62, 5], [.20, 1.535, .30, .69, .625, 5], [0, 1.578, .30, .69, .625, 5], [-.30, 1.588, .30, .69, .625, 5],
   [-.65, 1.565, .30, .69, .62, 5], [-.95, 1.505, .30, .685, .61, 5], [-1.25, 1.39, .30, .68, .59, 4.5], [-1.50, 1.20, .31, .67, .57, 4],
@@ -119,6 +119,9 @@ export function buildCar() {
     for (const [z, y] of [[.585, .62], [.585, .92], [-.355, .62], [-.355, .92]]) blob(g, [s * .693, y, z], [.01, .03, .015], 4, { mat: CHROME, col: C(.6, .6, .62, .3), part: P_BODY, nu: 6, nv: 8 });
   }
   tube(g, [[-.55, .855, 1.6], [.55, .855, 1.6]], .016, 8, { mat: CHASSIS, col: C(.25, .25, .25, .4), part: P_BODY }); // headlamp bar
+  // the bonnet's front comes down to the bumper: valance below the grille and a pan underneath (no view into the engine bay)
+  blob(g, [0, .585, 1.788], [.37, .205, .016], 9, { ...paint, nu: 10, nv: 28 }); // front panel: carries the grille, closes the nose
+  blob(g, [0, .385, 1.6], [.41, .014, .2], 8, { mat: CHASSIS, col: C(.06, .06, .06, .7), part: P_BODY, nu: 6, nv: 20 });
   for (const z of [1.885, -1.955]) {
     blob(g, [0, .375, z], [.7, .036, .024], 6, { mat: CHROME, col: C(.85, .85, .87, .15), part: P_BODY, nu: 10, nv: 28 });
     blob(g, [0, .375, z + Math.sign(z) * .02], [.69, .013, .01], 4, { mat: BLACK, col: C(.03, .03, .03, .6), part: P_BODY, nu: 6, nv: 24 });

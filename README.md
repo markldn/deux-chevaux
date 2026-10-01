@@ -37,8 +37,8 @@ with `DecompressionStream`. No base64, no external requests.
 
 **The car.** A 2CV6 built from parametric surfaces to the real dimensions (3830 × 1480 × 1600 mm, 2400 mm wheelbase,
 1260 mm track, 125 R 15 tyres): the ribbed bonnet, bolt-on wings and rear spats, round headlamps on their bar,
-four front-hinged doors and the six-light glasshouse, flap-up front windows, roll-back canvas roof, chevrons and
-grille. Underneath: the platform chassis, leading and trailing arms, the interconnected spring canisters, the
+four front-hinged doors and the six-light glasshouse, flap-up front windows, roll-back canvas roof, and the
+2CV6's grey plastic grille with its double chevrons, set into the bonnet front (it's air-cooled: no radiator). Underneath: the platform chassis, leading and trailing arms, the interconnected spring canisters, the
 602 cm³ air-cooled flat twin with finned barrels and its cooling fan, gearbox with inboard disc brakes, driveshafts,
 exhaust and silencer, fuel tank, the spare wheel under the bonnet. Inside: tubular seats, the umbrella-handle gear
 lever coming out of the dashboard, single-spoke wheel, pedals. Seven period paints, including the Charleston.
@@ -110,3 +110,7 @@ offset test.
 
 Research sources: Wikipedia's 2CV article (dimensions, suspension, engine, brief), citroenet.org.uk (2CV6 data),
 automobile-catalog.com (2CV6 Spécial torque and dimensions), cats-citroen.com (the 1976 crash test figures).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

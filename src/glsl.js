@@ -186,11 +186,15 @@ void main(){
   else if(seam<.006){N=normalize(N+vec3(0,.0,0));alb*=.82;}
   if(canv<0.){float st=abs(fract(s*4.+.5)-.5);alb=vec3(.035,.035,.04)*(.9+.2*vnoise(R.zx*vec2(300.,60.)));rough=.92;cc=0.;
    alb*=1.-smoothstep(.03,.0,st)*.5;N=normalize(N+vec3(0,0,1)*.05*sin(R.z*40.));}
-  if(R.z>1.765&&N.z>.3&&!(!ff)){ // nose: grille, chevrons
-   float gx=abs(R.x),gy=R.y;
-   if(gx<.27&&gy>.5&&gy<.735){float sl=fract((gy-.5)/.026);alb=mix(vec3(.01),vec3(.12),smoothstep(.55,.75,sl)*smoothstep(1.,.85,sl));rough=.6;cc=0.;metal=0.;}
-   else if(gx<.29&&gy>.48&&gy<.755){alb=vec3(.35);rough=.4;}
-   vec2 q=vec2(gx,gy-.775);for(int i=0;i<2;i++){float y0=float(i)*.022;float c1=abs(q.y-y0-(.045-q.x*.42))-.0055;if(c1<0.&&q.x<.075){alb=vec3(.85,.82,.7);metal=1.;rough=.2;cc=0.;}}}
+  if(R.z>1.765&&N.z>.3&&!(!ff)){ // nose: the 2CV6's grey plastic grille set into the bonnet, double chevrons on it
+   float gx=abs(R.x),gy=R.y,hw=.285-(gy-.47)*.16;
+   vec2 q=vec2(gx-hw+.045,abs(gy-.612)-.142+.045);float sd=length(max(q,0.))+min(max(q.x,q.y),0.)-.045;
+   if(sd<.004){cc=0.;metal=0.;
+    if(sd>-.024){alb=vec3(.4,.41,.42);rough=.45;N=normalize(N+vec3(sign(R.x)*.4,sign(gy-.612)*.4,0)*smoothstep(-.012,0.,sd));}   // surround
+    else{float sl=fract((gy-.47)/.021),bar=smoothstep(0.,.1,sl)*smoothstep(.66,.56,sl);
+     alb=mix(vec3(.015),vec3(.33,.34,.35),bar);rough=.5;N=normalize(N+vec3(0,(.33-sl)*.9*bar,0));}
+    vec2 c=vec2(gx,gy-.66);for(int i=0;i<2;i++){float y0=float(i)*.034;float d=abs(c.y-y0-(.028-c.x*.6))-.008;
+     if(d<0.&&c.x<.058){alb=vec3(.72,.73,.74);metal=.9;rough=.25;}}}}
   if(R.z<-1.9&&abs(R.x)<.25&&R.y>.42&&R.y<.52&&ff){alb=vec3(.85,.7,.12);rough=.5;cc=0.;if(abs(R.y-.47)<.03&&abs(fract(R.x*18.)-.5)<.3&&abs(R.x)<.21)alb=vec3(.03);}
   if(!ff){alb=uPaint*.55;rough=.7;cc=0.;
    if(abs(R.x)>.55&&R.y>.38&&R.y<1.02&&R.z<.56&&R.z>-.98)alb=vec3(.16,.15,.14)*(.9+.1*vnoise(R.zy*80.));}

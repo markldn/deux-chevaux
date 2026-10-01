@@ -390,11 +390,15 @@ void main(){
   else if(seam<.006){N=normalize(N+vec3(0,.0,0));alb*=.82;}
   if(canv<0.){float st=abs(fract(s*4.+.5)-.5);alb=vec3(.035,.035,.04)*(.9+.2*vnoise(R.zx*vec2(300.,60.)));rough=.92;cc=0.;
    alb*=1.-smoothstep(.03,.0,st)*.5;N=normalize(N+vec3(0,0,1)*.05*sin(R.z*40.));}
-  if(R.z>1.765&&N.z>.3&&!(!ff)){ // nose: grille, chevrons
-   float gx=abs(R.x),gy=R.y;
-   if(gx<.27&&gy>.5&&gy<.735){float sl=fract((gy-.5)/.026);alb=mix(vec3(.01),vec3(.12),smoothstep(.55,.75,sl)*smoothstep(1.,.85,sl));rough=.6;cc=0.;metal=0.;}
-   else if(gx<.29&&gy>.48&&gy<.755){alb=vec3(.35);rough=.4;}
-   vec2 q=vec2(gx,gy-.775);for(int i=0;i<2;i++){float y0=float(i)*.022;float c1=abs(q.y-y0-(.045-q.x*.42))-.0055;if(c1<0.&&q.x<.075){alb=vec3(.85,.82,.7);metal=1.;rough=.2;cc=0.;}}}
+  if(R.z>1.765&&N.z>.3&&!(!ff)){ // nose: the 2CV6's grey plastic grille set into the bonnet, double chevrons on it
+   float gx=abs(R.x),gy=R.y,hw=.285-(gy-.47)*.16;
+   vec2 q=vec2(gx-hw+.045,abs(gy-.612)-.142+.045);float sd=length(max(q,0.))+min(max(q.x,q.y),0.)-.045;
+   if(sd<.004){cc=0.;metal=0.;
+    if(sd>-.024){alb=vec3(.4,.41,.42);rough=.45;N=normalize(N+vec3(sign(R.x)*.4,sign(gy-.612)*.4,0)*smoothstep(-.012,0.,sd));}   // surround
+    else{float sl=fract((gy-.47)/.021),bar=smoothstep(0.,.1,sl)*smoothstep(.66,.56,sl);
+     alb=mix(vec3(.015),vec3(.33,.34,.35),bar);rough=.5;N=normalize(N+vec3(0,(.33-sl)*.9*bar,0));}
+    vec2 c=vec2(gx,gy-.66);for(int i=0;i<2;i++){float y0=float(i)*.034;float d=abs(c.y-y0-(.028-c.x*.6))-.008;
+     if(d<0.&&c.x<.058){alb=vec3(.72,.73,.74);metal=.9;rough=.25;}}}}
   if(R.z<-1.9&&abs(R.x)<.25&&R.y>.42&&R.y<.52&&ff){alb=vec3(.85,.7,.12);rough=.5;cc=0.;if(abs(R.y-.47)<.03&&abs(fract(R.x*18.)-.5)<.3&&abs(R.x)<.21)alb=vec3(.03);}
   if(!ff){alb=uPaint*.55;rough=.7;cc=0.;
    if(abs(R.x)>.55&&R.y>.38&&R.y<1.02&&R.z<.56&&R.z>-.98)alb=vec3(.16,.15,.14)*(.9+.1*vnoise(R.zy*80.));}
@@ -1021,9 +1025,9 @@ void main(){vec2 u=vU;
   var P_WHEEL = 4;
   var P_INT = 5;
   var SEC = table([
-    [1.81, 0.77, 0.47, 0.38, 0.33, 7],
-    [1.7, 0.835, 0.46, 0.42, 0.36, 7],
-    [1.4, 0.89, 0.45, 0.45, 0.4, 7],
+    [1.81, 0.77, 0.4, 0.38, 0.33, 7],
+    [1.7, 0.835, 0.4, 0.42, 0.36, 7],
+    [1.4, 0.89, 0.42, 0.45, 0.4, 7],
     [1, 0.965, 0.45, 0.5, 0.46, 7],
     [0.72, 1.02, 0.42, 0.58, 0.55, 6],
     [0.62, 1.04, 0.32, 0.66, 0.6, 5.5],
@@ -1152,6 +1156,8 @@ void main(){vec2 u=vU;
       for (const [z, y] of [[0.585, 0.62], [0.585, 0.92], [-0.355, 0.62], [-0.355, 0.92]]) blob(g2, [s * 0.693, y, z], [0.01, 0.03, 0.015], 4, { mat: CHROME, col: C2(0.6, 0.6, 0.62, 0.3), part: P_BODY, nu: 6, nv: 8 });
     }
     tube(g2, [[-0.55, 0.855, 1.6], [0.55, 0.855, 1.6]], 0.016, 8, { mat: CHASSIS, col: C2(0.25, 0.25, 0.25, 0.4), part: P_BODY });
+    blob(g2, [0, 0.585, 1.788], [0.37, 0.205, 0.016], 9, { ...paint, nu: 10, nv: 28 });
+    blob(g2, [0, 0.385, 1.6], [0.41, 0.014, 0.2], 8, { mat: CHASSIS, col: C2(0.06, 0.06, 0.06, 0.7), part: P_BODY, nu: 6, nv: 20 });
     for (const z of [1.885, -1.955]) {
       blob(g2, [0, 0.375, z], [0.7, 0.036, 0.024], 6, { mat: CHROME, col: C2(0.85, 0.85, 0.87, 0.15), part: P_BODY, nu: 10, nv: 28 });
       blob(g2, [0, 0.375, z + Math.sign(z) * 0.02], [0.69, 0.013, 0.01], 4, { mat: BLACK, col: C2(0.03, 0.03, 0.03, 0.6), part: P_BODY, nu: 6, nv: 24 });
